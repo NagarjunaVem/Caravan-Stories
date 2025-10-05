@@ -1,16 +1,25 @@
-import express from "express"
-import { isAuthenticated, login, logout, register, resetPassword, sendResetOtp, sendVerifyOtp, verifyEmail } from "../contollers/authController.js"
-import userAuth from "../middleware/userAuth.js"
+import express from "express";
+import {
+  register,
+  login,
+  logout,
+  isAuthenticated,
+  adminCreateUser,
+  updateRole,
+  bootstrapAdmin,
+} from "../controllers/authController.js";
+import userAuth from "../middleware/userAuth.js";
+import requireAdmin from "../middleware/requireAdmin.js";
 
-const authRouter = express.Router()
+const authRouter = express.Router();
 
-authRouter.post('/register',register)
-authRouter.post('/login',login)
-authRouter.post('/logout',logout)
-authRouter.post('/send-verify-otp',userAuth,sendVerifyOtp)
-authRouter.post('/verify-account',userAuth,verifyEmail)
-authRouter.post('/is-auth',userAuth,isAuthenticated)
-authRouter.post('/send-reset-otp',sendResetOtp)
-authRouter.post('/reset-password',resetPassword)
+// Public
+authRouter.post("/register", register); // citizen-only
+authRouter.post("/login", login);
+authRouter.post("/logout", logout);
 
-export default authRouter
+authRouter.post("/bootstrap-admin", bootstrapAdmin);
+
+// Authenticated
+authRouter.get("/is-auth", userAuth, isAuthenticated);
+export default authRouter;
