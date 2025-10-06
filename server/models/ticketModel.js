@@ -81,5 +81,5 @@ ticketSchema.pre("validate", function (next) {
   next();
 });
 
-const Ticket = mongoose.models.ticket || mongoose.model("ticket", ticketSchema);
-export default Ticket;
+const ticketModel = mongoose.models.ticket || mongoose.model("ticket", ticketSchema);
+export default ticketModel;

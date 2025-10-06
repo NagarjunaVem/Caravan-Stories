@@ -1,5 +1,4 @@
-// controllers/ticketController.js
-import Ticket from "../models/ticketModel.js";
+import ticketModel from "../models/ticketModel.js";
 import userModel from "../models/userModel.js";
 import transporter from "../configs/nodemailer.js";
 import { Parser } from 'json2csv'
@@ -63,11 +62,11 @@ const sendStatusChangeEmails = async ({ ticket, oldStatus, newStatus, reason }) 
   }
 };
 
-// Create a ticket and auto-assign to an employee in that category (department)
+// Create a ticket and assign to an employee in that category
 export const createTicket = async (req, res) => {
   try {
     const { title, description, category } = req.body;
-    const submittedBy = req.body.userId; // set by userAuth
+    const submittedBy = req.body.userId;
 
     if (!title || !description) {
       return res.json({ success: false, message: "title and description are required" });
@@ -85,13 +84,13 @@ export const createTicket = async (req, res) => {
       status = "Open";
     }
 
-    const ticket = await Ticket.create({
+    const ticket = await ticketModel.create({
       title,
       description,
       category: safeCategory,
       submittedBy,
       assignedTo,
-      status, // dueDate auto-set to +2 days by model hook
+      status, // due auto-set to 2 days
     });
 
     if (status === "Open") {
@@ -116,7 +115,6 @@ export const createTicket = async (req, res) => {
 };
 
 // Admin: reassign to a random employee in a department
-// Body: { ticketId, department }
 export const assignTicketToDept = async (req, res) => {
   try {
     const { ticketId, department } = req.body;
@@ -125,7 +123,7 @@ export const assignTicketToDept = async (req, res) => {
     }
 
     const safeDepartment = normalizeCategory(department);
-    const ticket = await Ticket.findOne({ ticketId });
+    const ticket = await ticketModel.findOne({ ticketId });
     if (!ticket) return res.json({ success: false, message: "Ticket not found" });
 
     const employees = await userModel
@@ -160,7 +158,6 @@ export const assignTicketToDept = async (req, res) => {
 };
 
 // Update status (assignee or admin)
-// Body: { ticketId, status }
 export const updateTicketStatus = async (req, res) => {
   try {
     const { ticketId, status } = req.body;
@@ -198,7 +195,6 @@ export const updateTicketStatus = async (req, res) => {
 };
 
 // Reopen a ticket (submitter or admin)
-// Body: { ticketId, reason? }
 export const reopenTicket = async (req, res) => {
   try {
     const { ticketId, reason } = req.body;
@@ -291,7 +287,7 @@ export const getMySubmittedTickets = async (req, res) => {
 export const getMyAssignedTickets = async (req, res) => {
   try {
     const userId = req.body.userId;
-    const tickets = await Ticket.find({ assignedTo: userId }).sort({ createdAt: -1 });
+    const tickets = await ticketModel.find({ assignedTo: userId }).sort({ createdAt: -1 });
     return res.json({ success: true, tickets });
   } catch (error) {
     return res.json({ success: false, message: error.message });
@@ -312,15 +308,15 @@ export const getTicketSummary = async (req, res) => {
   try {
     const now = new Date();
     const [total, pending, open, inProgress, resolved, closed, reopened, overdue, byCategory] = await Promise.all([
-      Ticket.countDocuments({}),
-      Ticket.countDocuments({ status: "Pending" }),
-      Ticket.countDocuments({ status: "Open" }),
-      Ticket.countDocuments({ status: "In Progress" }),
-      Ticket.countDocuments({ status: "Resolved" }),
-      Ticket.countDocuments({ status: "Closed" }),
-      Ticket.countDocuments({ status: "Reopened" }),
-      Ticket.countDocuments({ dueDate: { $lt: now }, status: { $nin: ["Resolved", "Closed"] } }),
-      Ticket.aggregate([
+      ticketModel.countDocuments({}),
+      ticketModel.countDocuments({ status: "Pending" }),
+      ticketModel.countDocuments({ status: "Open" }),
+      ticketModel.countDocuments({ status: "In Progress" }),
+      ticketModel.countDocuments({ status: "Resolved" }),
+      ticketModel.countDocuments({ status: "Closed" }),
+      ticketModel.countDocuments({ status: "Reopened" }),
+      ticketModel.countDocuments({ dueDate: { $lt: now }, status: { $nin: ["Resolved", "Closed"] } }),
+      ticketModel.aggregate([
         { $group: { _id: "$category", count: { $sum: 1 } } },
         { $project: { _id: 0, category: "$_id", count: 1 } },
         { $sort: { category: 1 } },
@@ -352,13 +348,13 @@ export const getMyTicketSummary = async (req, res) => {
     const userId = req.body.userId;
 
     const [total, pending, open, inProgress, resolved, closed, reopened] = await Promise.all([
-      Ticket.countDocuments({ submittedBy: userId }),
-      Ticket.countDocuments({ submittedBy: userId, status: "Pending" }),
-      Ticket.countDocuments({ submittedBy: userId, status: "Open" }),
-      Ticket.countDocuments({ submittedBy: userId, status: "In Progress" }),
-      Ticket.countDocuments({ submittedBy: userId, status: "Resolved" }),
-      Ticket.countDocuments({ submittedBy: userId, status: "Closed" }),
-      Ticket.countDocuments({ submittedBy: userId, status: "Reopened" }),
+      ticketModel.countDocuments({ submittedBy: userId }),
+      ticketModel.countDocuments({ submittedBy: userId, status: "Pending" }),
+      ticketModel.countDocuments({ submittedBy: userId, status: "Open" }),
+      ticketModel.countDocuments({ submittedBy: userId, status: "In Progress" }),
+      ticketModel.countDocuments({ submittedBy: userId, status: "Resolved" }),
+      ticketModel.countDocuments({ submittedBy: userId, status: "Closed" }),
+      ticketModel.countDocuments({ submittedBy: userId, status: "Reopened" }),
     ]);
 
     return res.json({
@@ -375,13 +371,13 @@ export const getMyAssignedTicketSummary = async (req, res) => {
     const userId = req.body.userId;
 
     const [total, pending, open, inProgress, resolved, closed, reopened] = await Promise.all([
-      Ticket.countDocuments({ assignedTo: userId }),
-      Ticket.countDocuments({ assignedTo: userId, status: "Pending" }),
-      Ticket.countDocuments({ assignedTo: userId, status: "Open" }),
-      Ticket.countDocuments({ assignedTo: userId, status: "In Progress" }),
-      Ticket.countDocuments({ assignedTo: userId, status: "Resolved" }),
-      Ticket.countDocuments({ assignedTo: userId, status: "Closed" }),
-      Ticket.countDocuments({ assignedTo: userId, status: "Reopened" }),
+      ticketModel.countDocuments({ assignedTo: userId }),
+      ticketModel.countDocuments({ assignedTo: userId, status: "Pending" }),
+      ticketModel.countDocuments({ assignedTo: userId, status: "Open" }),
+      ticketModel.countDocuments({ assignedTo: userId, status: "In Progress" }),
+      ticketModel.countDocuments({ assignedTo: userId, status: "Resolved" }),
+      ticketModel.countDocuments({ assignedTo: userId, status: "Closed" }),
+      ticketModel.countDocuments({ assignedTo: userId, status: "Reopened" }),
     ]);
 
     return res.json({

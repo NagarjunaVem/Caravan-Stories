@@ -6,7 +6,7 @@ const DEPARTMENTS = [
   "Electrical","Mechanical","Civil","Maintenance","Logistics","Procurement",
 ];
 
-// Admin: create employee (only admins can hit this)
+// Admin: create employee
 export const adminCreateEmployee = async (req, res) => {
   try {
     const { name, email, password, department } = req.body;
