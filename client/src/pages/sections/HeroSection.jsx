@@ -20,7 +20,7 @@ const HeroSection = () => {
                                 <p className="text-slate-600 text-base font-medium">Experience</p>
                             </div>
                             <div className="flex flex-col items-center text-center">
-                                <h5 className="font-bold text-2xl text-indigo-600 mb-2">{ticketSummary.total}</h5>
+                                <h5 className="font-bold text-2xl text-indigo-600 mb-2">{ticketSummary?.total || 0}</h5>
                                 <p className="text-slate-600 text-base font-medium">Tickets Resolved</p>
                             </div>
                             <div className="flex flex-col items-center text-center">
