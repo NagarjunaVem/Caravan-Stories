@@ -152,8 +152,9 @@ const Register = () => {
                 {/* Submit button */}
                 <button
                     type="submit"
-                    className={`mt-4 sm:mt-6 w-full h-11 sm:h-12 rounded-full text-white text-sm sm:text-base font-medium bg-indigo-500 hover:bg-indigo-600 transition-all ${loading ? 'opacity-60 cursor-not-allowed' : ''
-                        }`}
+                    
+                    className={`mt-4 sm:mt-6 w-full h-11 sm:h-12 rounded-full text-white text-sm sm:text-base font-medium bg-[#FFC400] hover:bg-[#b58a00b4] transition-all ${loading ? 'opacity-60 cursor-not-allowed' : ''
+                        }`}    
                     disabled={loading}
                 >
                     {loading ? 'Creating Account...' : 'Sign Up'}
@@ -164,7 +165,7 @@ const Register = () => {
                     Already have an account?{' '}
                     <Link
                         to="/login"
-                        className="text-indigo-500 dark:text-indigo-400 hover:underline font-medium"
+                         className="text-[#FFC400] dark:text-[#FFC400] hover:underline font-medium"
                     >
                         Login
                     </Link>
