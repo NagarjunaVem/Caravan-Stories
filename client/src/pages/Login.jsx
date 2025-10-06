@@ -2,6 +2,8 @@ import { useContext, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
 import { toast } from 'react-toastify';
+import bgImg from '../assets/bg.jpg';
+
 import axios from 'axios';
 
 const Login = () => {
@@ -21,11 +23,11 @@ const Login = () => {
         try {
             axios.defaults.withCredentials = true;
 
-            const res = await axios.post(`${backendUrl}/api/auth/login`, { 
-                email, 
-                password 
+            const res = await axios.post(`${backendUrl}/api/auth/login`, {
+                email,
+                password
             });
-            
+
             const data = res.data;
 
             if (data.success && data.user?.role) {
@@ -45,20 +47,23 @@ const Login = () => {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-zinc-950">
+        <div className="flex items-center justify-center min-h-screen bg-cover bg-center bg-no-repeat px-4 sm:px-6 lg:px-8" style={{ backgroundImage: `url(${bgImg})` }}>
             <form
                 onSubmit={handleSubmit}
-                className="w-full sm:w-[350px] text-center border border-zinc-300/60 dark:border-zinc-700 rounded-2xl px-8 bg-white dark:bg-zinc-900"
+                className="relative z-10 w-full max-w-[90%] xs:max-w-[350px] sm:max-w-md md:max-w-lg lg:max-w-xl 
+                sm:w-[350px] text-center border border-white/20 rounded-2xl 
+                px-6 py-6 sm:px-8 sm:py-8 
+                backdrop-blur-md bg-white/10 dark:bg-zinc-900/40 shadow-xl"
             >
-                <h1 className="text-zinc-900 dark:text-white text-3xl mt-10 font-medium">
+                <h1 className="text-zinc-900 dark:text-white text-2xl sm:text-3xl mt-6 sm:mt-10 font-medium">
                     Login
                 </h1>
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-2 pb-6">
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-2 pb-4 sm:pb-6">
                     Please login to continue
                 </p>
 
                 {/* Email input */}
-                <div className="flex items-center w-full mt-4 bg-white dark:bg-zinc-800 border border-zinc-300/80 dark:border-zinc-700 h-12 rounded-full overflow-hidden pl-6 gap-2">
+                <div className="flex items-center w-full mt-3 sm:mt-4 bg-white/5 dark:bg-zinc-800/50 border border-zinc-300/80 dark:border-zinc-700 h-11 sm:h-12 rounded-full overflow-hidden pl-4 sm:pl-6 gap-2 backdrop-blur-lg">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="16"
@@ -68,7 +73,7 @@ const Login = () => {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="text-zinc-500 dark:text-zinc-400"
+                        className="text-zinc-500 dark:text-zinc-400 flex-shrink-0"
                         viewBox="0 0 24 24"
                     >
                         <rect width="20" height="16" x="2" y="4" rx="2" />
@@ -77,7 +82,7 @@ const Login = () => {
                     <input
                         type="email"
                         placeholder="Email id"
-                        className="bg-transparent text-zinc-600 dark:text-zinc-200 placeholder-zinc-500 dark:placeholder-zinc-400 outline-none text-sm w-full h-full"
+                        className="bg-transparent text-zinc-900 dark:text-zinc-200 placeholder-zinc-500 dark:placeholder-zinc-400 outline-none text-sm w-full h-full pr-4"
                         name="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -86,7 +91,7 @@ const Login = () => {
                 </div>
 
                 {/* Password input */}
-                <div className="flex items-center mt-4 w-full bg-white dark:bg-zinc-800 border border-zinc-300/80 dark:border-zinc-700 h-12 rounded-full overflow-hidden pl-6 gap-2">
+                <div className="flex items-center mt-3 sm:mt-4 w-full bg-white/5 dark:bg-zinc-800/50 border border-zinc-300/80 dark:border-zinc-700 h-11 sm:h-12 rounded-full overflow-hidden pl-4 sm:pl-6 gap-2 backdrop-blur-lg">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="16"
@@ -96,7 +101,7 @@ const Login = () => {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="text-zinc-500 dark:text-zinc-400"
+                        className="text-zinc-500 dark:text-zinc-400 flex-shrink-0"
                         viewBox="0 0 24 24"
                     >
                         <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
@@ -105,7 +110,7 @@ const Login = () => {
                     <input
                         type="password"
                         placeholder="Password"
-                        className="bg-transparent text-zinc-600 dark:text-zinc-200 placeholder-zinc-500 dark:placeholder-zinc-400 outline-none text-sm w-full h-full"
+                        className="bg-transparent text-zinc-900 dark:text-zinc-200 placeholder-zinc-500 dark:placeholder-zinc-400 outline-none text-sm w-full h-full pr-4"
                         name="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -114,33 +119,22 @@ const Login = () => {
                     />
                 </div>
 
-                {/* Forgot password link */}
-                <div className="text-right mt-2">
-                    <Link 
-                        to="/forgot-password" 
-                        className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline"
-                    >
-                        Forgot password?
-                    </Link>
-                </div>
-
                 {/* Submit button */}
                 <button
                     type="submit"
-                    className={`mt-4 w-full h-11 rounded-full text-white bg-indigo-500 hover:bg-indigo-600 transition-all ${
-                        loading ? 'opacity-60 cursor-not-allowed' : ''
-                    }`}
+                    className={`mt-4 sm:mt-6 w-full h-11 sm:h-12 rounded-full text-white text-sm sm:text-base font-medium bg-indigo-500 hover:bg-indigo-600 transition-all ${loading ? 'opacity-60 cursor-not-allowed' : ''
+                        }`}
                     disabled={loading}
                 >
                     {loading ? 'Logging in...' : 'Login'}
                 </button>
 
                 {/* Toggle to register */}
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-3 mb-11">
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-3 sm:mt-4 mb-6 sm:mb-11">
                     Don't have an account?{' '}
                     <Link
                         to="/register"
-                        className="text-indigo-500 dark:text-indigo-400 hover:underline"
+                        className="text-indigo-500 dark:text-indigo-400 hover:underline font-medium"
                     >
                         Sign up
                     </Link>
