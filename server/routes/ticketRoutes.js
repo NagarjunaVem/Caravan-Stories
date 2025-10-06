@@ -35,7 +35,7 @@ ticketRouter.get("/my-assigned", userAuth, getMyAssignedTickets);
 ticketRouter.get("/all", userAuth, requireAdmin, getAllTickets);
 
 
-ticketRouter.get("/summary", userAuth, requireAdmin, getTicketSummary);
+ticketRouter.get("/summary", getTicketSummary);
 
 // My summaries
 ticketRouter.get("/my-summary", userAuth, getMyTicketSummary);
