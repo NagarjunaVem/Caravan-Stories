@@ -1,10 +1,12 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Login from './pages/Login'
-import EmailVerify from './pages/EmailVerify'
-import ResetPassword from './pages/ResetPassword'
 import Home from './pages/Home'
 import { ToastContainer } from 'react-toastify'
+import CitizenDash from './pages/dashboards/CitizenDash'
+import EmployeeDash from './pages/dashboards/EmployeeDash'
+import AdminDash from './pages/dashboards/AdminDash'
+import Register from './pages/Register'
 
 
 const App = () => {
@@ -14,8 +16,10 @@ const App = () => {
       <Routes>
         <Route path='/' element={<Home />} />
         <Route path='/login' element={<Login />} />
-        <Route path='/email-verify' element={<EmailVerify />} />
-        <Route path='/reset-password' element={<ResetPassword />} />
+        <Route path='/register' element={<Register />} />
+        <Route path='/citizen-dashboard' element={<CitizenDash />} />
+        <Route path='/employee-dashboard' element={< EmployeeDash />} />
+        <Route path='/admin-dashboard' element={<AdminDash />} />
       </Routes>
    </>
   )
