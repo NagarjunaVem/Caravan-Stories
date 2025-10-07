@@ -10,6 +10,14 @@ const DEPARTMENTS = [
   "Maintenance", "Logistics", "Procurement"
 ];
 
+const CATEGORIES = [
+  "IT", "HR", "Finance", "Facilities", "Management", "Support",
+  "Operations", "Safety", "Electrical", "Mechanical", "Civil",
+  "Maintenance", "Logistics", "Procurement", "Other"
+];
+
+const PRIORITY_LEVELS = ["Low", "Medium", "High", "Urgent"];
+
 const AdminDashboard = () => {
     const { backendUrl, userData } = useContext(AppContext);
     
@@ -33,10 +41,24 @@ const AdminDashboard = () => {
     
     // Modal states
     const [showCreateEmployee, setShowCreateEmployee] = useState(false);
+    const [showCreateTicket, setShowCreateTicket] = useState(false);
     const [showAssignTicket, setShowAssignTicket] = useState(false);
     const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
+    
+    // Create ticket form
+    const [ticketForm, setTicketForm] = useState({
+        title: '',
+        description: '',
+        category: '',
+        priority: 'Medium',
+        location: '',
+        image: null
+    });
+    const [imagePreview, setImagePreview] = useState(null);
+    const [loadingLocation, setLoadingLocation] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     
     // Employee form
     const [employeeForm, setEmployeeForm] = useState({
@@ -120,6 +142,54 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleCreateTicket = async (e) => {
+        e.preventDefault();
+        
+        if (!ticketForm.category) {
+            toast.error('Please select a category');
+            return;
+        }
+
+        setSubmitting(true);
+
+        try {
+            const formData = new FormData();
+            formData.append('title', ticketForm.title);
+            formData.append('description', ticketForm.description);
+            formData.append('category', ticketForm.category);
+            formData.append('priority', ticketForm.priority);
+            formData.append('location', ticketForm.location || '');
+            
+            if (ticketForm.image) {
+                formData.append('image', ticketForm.image);
+            }
+
+            const { data } = await axios.post(
+                `${backendUrl}/api/tickets/create`,
+                formData,
+                {
+                    withCredentials: true,
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                }
+            );
+            
+            if (data.success) {
+                toast.success('Ticket created successfully!');
+                setShowCreateTicket(false);
+                resetTicketForm();
+                fetchDashboardData();
+            } else {
+                toast.error(data.message || 'Failed to create ticket');
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to create ticket');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleAssignTicket = async (department) => {
         if (!selectedTicket) return;
         
@@ -168,6 +238,131 @@ const AdminDashboard = () => {
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to update department');
         }
+    };
+
+    const getCurrentLocation = () => {
+        setLoadingLocation(true);
+        
+        if (!navigator.geolocation) {
+            toast.error('Geolocation is not supported by your browser');
+            setLoadingLocation(false);
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                
+                try {
+                    const response = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+                    );
+                    const data = await response.json();
+                    const address = data.display_name || `${latitude}, ${longitude}`;
+                    
+                    setTicketForm({ ...ticketForm, location: address });
+                    toast.success('Location detected successfully!');
+                } catch (error) {
+                    setTicketForm({ ...ticketForm, location: `${latitude}, ${longitude}` });
+                    toast.info('Location coordinates set');
+                }
+                
+                setLoadingLocation(false);
+            },
+            (error) => {
+                toast.error('Unable to retrieve your location');
+                setLoadingLocation(false);
+            }
+        );
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            if (file.size > 5 * 1024 * 1024) {
+                toast.error('Image size should be less than 5MB');
+                return;
+            }
+            
+            setTicketForm({ ...ticketForm, image: file });
+            
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const resetTicketForm = () => {
+        setTicketForm({
+            title: '',
+            description: '',
+            category: '',
+            priority: 'Medium',
+            location: '',
+            image: null
+        });
+        setImagePreview(null);
+    };
+
+    const exportToCSV = () => {
+        // Prepare CSV data
+        const csvHeaders = [
+            'Ticket ID',
+            'Title',
+            'Description',
+            'Category',
+            'Priority',
+            'Status',
+            'Submitted By',
+            'Assigned To',
+            'Location',
+            'Created Date',
+            'Due Date',
+            'Is Overdue'
+        ];
+
+        const csvData = allTickets.map(ticket => {
+            const isOverdue = new Date(ticket.dueDate) < new Date() && 
+                           !['Resolved', 'Closed'].includes(ticket.status);
+            
+            return [
+                ticket.ticketId,
+                `"${ticket.title.replace(/"/g, '""')}"`, // Escape quotes
+                `"${ticket.description.replace(/"/g, '""')}"`,
+                ticket.category,
+                ticket.priority,
+                ticket.status,
+                ticket.submittedBy?.name || 'Unknown',
+                ticket.assignedTo?.name || ticket.assignedTo?.department || 'Unassigned',
+                `"${(ticket.location || '').replace(/"/g, '""')}"`,
+                new Date(ticket.createdAt).toLocaleDateString(),
+                new Date(ticket.dueDate).toLocaleDateString(),
+                isOverdue ? 'Yes' : 'No'
+            ];
+        });
+
+        // Create CSV content
+        const csvContent = [
+            csvHeaders.join(','),
+            ...csvData.map(row => row.join(','))
+        ].join('\n');
+
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', `tickets_summary_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.success('Tickets exported successfully!');
     };
 
     const getStatusColor = (status) => {
@@ -228,15 +423,26 @@ const AdminDashboard = () => {
                             Welcome back, {userData?.name || 'Admin'}!
                         </p>
                     </div>
-                    <button
-                        onClick={() => setShowCreateEmployee(true)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Create Employee
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setShowCreateTicket(true)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Create Ticket
+                        </button>
+                        <button
+                            onClick={() => setShowCreateEmployee(true)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Create Employee
+                        </button>
+                    </div>
                 </div>
 
                 {/* Tabs */}
@@ -384,9 +590,20 @@ const AdminDashboard = () => {
                         {/* Category Breakdown */}
                         {stats.byCategory && stats.byCategory.length > 0 && (
                             <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800 p-6">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                                    Tickets by Category
-                                </h2>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        Tickets by Category
+                                    </h2>
+                                    <button
+                                        onClick={exportToCSV}
+                                        className="bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        Export to CSV
+                                    </button>
+                                </div>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                                     {stats.byCategory.map((cat, index) => (
                                         <div key={index} className="border border-gray-200 dark:border-zinc-800 rounded-lg p-4">
@@ -408,9 +625,20 @@ const AdminDashboard = () => {
                 {activeTab === 'tickets' && (
                     <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800">
                         <div className="p-6 border-b border-gray-200 dark:border-zinc-800">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                All Tickets ({allTickets.length})
-                            </h2>
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    All Tickets ({allTickets.length})
+                                </h2>
+                                <button
+                                    onClick={exportToCSV}
+                                    className="bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Export to CSV
+                                </button>
+                            </div>
                         </div>
                         
                         <div className="overflow-x-auto">
@@ -652,6 +880,213 @@ const AdminDashboard = () => {
                     </>
                 )}
             </div>
+
+            {/* Create Ticket Modal - Compact Version */}
+            {showCreateTicket && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-2xl w-full">
+                        <div className="p-4 border-b border-gray-200 dark:border-zinc-800">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Create New Ticket
+                                </h2>
+                                <button
+                                    onClick={() => {
+                                        setShowCreateTicket(false);
+                                        resetTicketForm();
+                                    }}
+                                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                    disabled={submitting}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <form onSubmit={handleCreateTicket} className="p-4 space-y-3">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Ticket Title *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={ticketForm.title}
+                                    onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })}
+                                    placeholder="Brief description of the issue"
+                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    required
+                                    maxLength={200}
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Description *
+                                </label>
+                                <textarea
+                                    value={ticketForm.description}
+                                    onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
+                                    placeholder="Provide detailed information about the issue..."
+                                    rows="3"
+                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Category *
+                                    </label>
+                                    <select
+                                        value={ticketForm.category}
+                                        onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
+                                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        required
+                                    >
+                                        <option value="">Select Category</option>
+                                        {CATEGORIES.map((cat) => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Priority *
+                                    </label>
+                                    <select
+                                        value={ticketForm.priority}
+                                        onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value })}
+                                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        required
+                                    >
+                                        {PRIORITY_LEVELS.map((priority) => (
+                                            <option key={priority} value={priority}>{priority}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Location
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={ticketForm.location}
+                                        onChange={(e) => setTicketForm({ ...ticketForm, location: e.target.value })}
+                                        placeholder="Enter address or use current location"
+                                        className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={getCurrentLocation}
+                                        disabled={loadingLocation}
+                                        className="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                                        title="Use current location"
+                                    >
+                                        {loadingLocation ? (
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                                        ) : (
+                                            <svg className="w-4 h-4 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Upload Image (Optional)
+                                </label>
+                                <div className="flex items-center gap-3 p-3 border-2 border-gray-300 dark:border-zinc-700 border-dashed rounded-lg hover:border-indigo-500 transition-colors">
+                                    {imagePreview ? (
+                                        <div className="flex items-center gap-3 w-full">
+                                            <img
+                                                src={imagePreview}
+                                                alt="Preview"
+                                                className="h-16 w-16 object-cover rounded-lg"
+                                            />
+                                            <div className="flex-1">
+                                                <p className="text-sm text-gray-900 dark:text-white">Image selected</p>
+                                                <p className="text-xs text-gray-500">Click remove to delete</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setTicketForm({ ...ticketForm, image: null });
+                                                    setImagePreview(null);
+                                                }}
+                                                className="bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-3 w-full">
+                                            <svg className="h-10 w-10 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                            <div className="flex-1">
+                                                <label htmlFor="image-upload" className="cursor-pointer text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">
+                                                    Click to upload
+                                                    <input
+                                                        id="image-upload"
+                                                        name="image-upload"
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="sr-only"
+                                                        onChange={handleImageChange}
+                                                    />
+                                                </label>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                    PNG, JPG, GIF up to 5MB
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowCreateTicket(false);
+                                        resetTicketForm();
+                                    }}
+                                    disabled={submitting}
+                                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors shadow-lg shadow-indigo-600/50 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {submitting ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                            Creating...
+                                        </>
+                                    ) : (
+                                        'Create Ticket'
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Create Employee Modal */}
             {showCreateEmployee && (
