@@ -17,48 +17,31 @@ const ticketSchema = new mongoose.Schema(
     category: {
       type: String,
       enum: [
-        "IT",
-        "HR",
-        "Finance",
-        "Facilities",
-        "Management",
-        "Support",
-        "Operations",
-        "Safety",
-        "Electrical",
-        "Mechanical",
-        "Civil",
-        "Maintenance",
-        "Logistics",
-        "Procurement",
-        "Other",
+        "IT", "HR", "Finance", "Facilities", "Management", "Support",
+        "Operations", "Safety", "Electrical", "Mechanical", "Civil",
+        "Maintenance", "Logistics", "Procurement", "Other",
       ],
       default: "Other",
     },
-
+    priority: {
+      type: String,
+      enum: ["Low", "Medium", "High", "Urgent"],
+      default: "Medium",
+    },
     status: {
       type: String,
-      enum: [
-        "Pending",
-        "Open",
-        "In Progress",
-        "Resolved",
-        "Closed",
-        "Reopened",
-      ],
+      enum: ["Pending", "Open", "In Progress", "Resolved", "Closed", "Reopened"],
       default: "Pending",
     },
-
     submittedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "user",
       required: true,
     },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
-
-    // SLA: default to 2 days from creation
+    location: { type: String, trim: true },
+    image: { type: String }, // URL or file path
     dueDate: { type: Date },
-
     comments: [commentSchema],
   },
   { timestamps: true }

@@ -4,21 +4,9 @@ import transporter from "../configs/nodemailer.js";
 import { Parser } from 'json2csv';
 
 const DEPARTMENTS = [
-  "IT",
-  "HR",
-  "Finance",
-  "Facilities",
-  "Management",
-  "Support",
-  "Operations",
-  "Safety",
-  "Electrical",
-  "Mechanical",
-  "Civil",
-  "Maintenance",
-  "Logistics",
-  "Procurement",
-  "Other",
+  "IT", "HR", "Finance", "Facilities", "Management", "Support",
+  "Operations", "Safety", "Electrical", "Mechanical", "Civil",
+  "Maintenance", "Logistics", "Procurement", "Other",
 ];
 
 const normalizeCategory = (val) => {
@@ -62,17 +50,26 @@ const sendStatusChangeEmails = async ({ ticket, oldStatus, newStatus, reason }) 
   }
 };
 
-// Create a ticket and assign to an employee in that category
+// Create a ticket with image, location, priority
 export const createTicket = async (req, res) => {
   try {
-    const { title, description, category } = req.body;
-    const submittedBy = req.body.userId;
+    const { title, description, category, location, priority } = req.body;
+    const submittedBy = req.userId; // ✅ Use req.userId
+
+    if (!submittedBy) {
+      return res.status(401).json({ success: false, message: "User not authenticated" });
+    }
 
     if (!title || !description) {
       return res.json({ success: false, message: "title and description are required" });
     }
 
     const safeCategory = normalizeCategory(category || "Other");
+    const safePriority = ["Low", "Medium", "High", "Urgent"].includes(priority) ? priority : "Medium";
+
+    // Get image path if uploaded
+    const imagePath = req.file ? `/uploads/tickets/${req.file.filename}` : null;
+
     const employees = await userModel
       .find({ role: "employee", department: safeCategory })
       .select("_id name email");
@@ -88,10 +85,19 @@ export const createTicket = async (req, res) => {
       title,
       description,
       category: safeCategory,
+      priority: safePriority,
+      location: location || "",
+      image: imagePath,
       submittedBy,
       assignedTo,
       status,
     });
+
+    // Populate for response
+    await ticket.populate([
+      { path: 'submittedBy', select: 'name email' },
+      { path: 'assignedTo', select: 'name email department' }
+    ]);
 
     if (status === "Open") {
       await sendStatusChangeEmails({
@@ -110,6 +116,40 @@ export const createTicket = async (req, res) => {
         : "Ticket created; no employee found in this department, left unassigned",
     });
   } catch (error) {
+    console.error("Create ticket error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+// Get single ticket details
+export const getTicketDetails = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const userId = req.userId; // ✅ Use req.userId
+
+    const ticket = await ticketModel
+      .findOne({ ticketId })
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email department")
+      .populate("comments.user", "name email");
+
+    if (!ticket) {
+      return res.json({ success: false, message: "Ticket not found" });
+    }
+
+    // Check if user has access to this ticket
+    const user = await userModel.findById(userId);
+    const isAdmin = user.role === "admin";
+    const isSubmitter = String(ticket.submittedBy._id) === String(userId);
+    const isAssignee = ticket.assignedTo && String(ticket.assignedTo._id) === String(userId);
+
+    if (!isAdmin && !isSubmitter && !isAssignee) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    return res.json({ success: true, ticket });
+  } catch (error) {
+    console.error("Get ticket details error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -142,7 +182,12 @@ export const assignTicketToDept = async (req, res) => {
     ticket.status = ticket.status === "Pending" ? "Open" : ticket.status;
     await ticket.save();
 
-    // Notify on status change
+    // Populate for response
+    await ticket.populate([
+      { path: 'submittedBy', select: 'name email' },
+      { path: 'assignedTo', select: 'name email department' }
+    ]);
+
     if (oldStatus !== ticket.status) {
       await sendStatusChangeEmails({
         ticket,
@@ -154,6 +199,7 @@ export const assignTicketToDept = async (req, res) => {
 
     return res.json({ success: true, message: "Ticket reassigned", ticket });
   } catch (error) {
+    console.error("Assign ticket error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -162,7 +208,7 @@ export const assignTicketToDept = async (req, res) => {
 export const updateTicketStatus = async (req, res) => {
   try {
     const { ticketId, status } = req.body;
-    const meId = req.body.userId;
+    const meId = req.userId; // ✅ Use req.userId
 
     const ALLOWED = ["Pending", "Open", "In Progress", "Resolved", "Closed", "Reopened"];
     if (!ticketId || !status) {
@@ -191,12 +237,19 @@ export const updateTicketStatus = async (req, res) => {
     ticket.status = status;
     await ticket.save();
 
+    // Populate for response
+    await ticket.populate([
+      { path: 'submittedBy', select: 'name email' },
+      { path: 'assignedTo', select: 'name email department' }
+    ]);
+
     if (oldStatus !== status) {
       await sendStatusChangeEmails({ ticket, oldStatus, newStatus: status });
     }
 
     return res.json({ success: true, ticket });
   } catch (error) {
+    console.error("Update status error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -205,7 +258,7 @@ export const updateTicketStatus = async (req, res) => {
 export const reopenTicket = async (req, res) => {
   try {
     const { ticketId, reason } = req.body;
-    const meId = req.body.userId;
+    const meId = req.userId; // ✅ Use req.userId
 
     if (!ticketId) {
       return res.json({ success: false, message: "ticketId is required" });
@@ -254,6 +307,13 @@ export const reopenTicket = async (req, res) => {
 
     await ticket.save();
 
+    // Populate for response
+    await ticket.populate([
+      { path: 'submittedBy', select: 'name email' },
+      { path: 'assignedTo', select: 'name email department' },
+      { path: 'comments.user', select: 'name email' }
+    ]);
+
     await sendStatusChangeEmails({
       ticket,
       oldStatus,
@@ -263,6 +323,7 @@ export const reopenTicket = async (req, res) => {
 
     return res.json({ success: true, message: "Ticket reopened", ticket });
   } catch (error) {
+    console.error("Reopen ticket error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -271,7 +332,7 @@ export const reopenTicket = async (req, res) => {
 export const addComment = async (req, res) => {
   try {
     const { ticketId, text } = req.body;
-    const userId = req.body.userId;
+    const userId = req.userId; // ✅ Use req.userId
 
     if (!ticketId || !text) {
       return res.json({ success: false, message: "ticketId and text are required" });
@@ -283,8 +344,16 @@ export const addComment = async (req, res) => {
     ticket.comments.push({ user: userId, text: String(text).trim() });
     await ticket.save();
 
+    // Populate for response
+    await ticket.populate([
+      { path: 'submittedBy', select: 'name email' },
+      { path: 'assignedTo', select: 'name email department' },
+      { path: 'comments.user', select: 'name email' }
+    ]);
+
     return res.json({ success: true, ticket });
   } catch (error) {
+    console.error("Add comment error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -292,7 +361,7 @@ export const addComment = async (req, res) => {
 // Lists
 export const getMySubmittedTickets = async (req, res) => {
   try {
-    const userId = req.body.userId;
+    const userId = req.userId; // ✅ Use req.userId
     const tickets = await ticketModel
       .find({ submittedBy: userId })
       .populate("submittedBy", "name email")
@@ -301,13 +370,14 @@ export const getMySubmittedTickets = async (req, res) => {
 
     return res.json({ success: true, tickets });
   } catch (error) {
+    console.error("Get submitted tickets error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
 
 export const getMyAssignedTickets = async (req, res) => {
   try {
-    const userId = req.body.userId;
+    const userId = req.userId; // ✅ Use req.userId
     const tickets = await ticketModel
       .find({ assignedTo: userId })
       .populate("submittedBy", "name email")
@@ -316,11 +386,11 @@ export const getMyAssignedTickets = async (req, res) => {
 
     return res.json({ success: true, tickets });
   } catch (error) {
+    console.error("Get assigned tickets error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
 
-// GET ALL TICKETS (Admin only) - FIXED: Removed duplicate, added populate
 export const getAllTickets = async (req, res) => {
   try {
     const tickets = await ticketModel
@@ -331,6 +401,7 @@ export const getAllTickets = async (req, res) => {
 
     return res.json({ success: true, tickets });
   } catch (error) {
+    console.error("Get all tickets error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -373,6 +444,7 @@ export const getTicketSummary = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Get summary error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -380,7 +452,7 @@ export const getTicketSummary = async (req, res) => {
 // My summaries
 export const getMyTicketSummary = async (req, res) => {
   try {
-    const userId = req.body.userId;
+    const userId = req.userId; // ✅ Use req.userId
 
     const [total, pending, open, inProgress, resolved, closed, reopened] = await Promise.all([
       ticketModel.countDocuments({ submittedBy: userId }),
@@ -397,13 +469,14 @@ export const getMyTicketSummary = async (req, res) => {
       summary: { total, pending, open, inProgress, resolved, closed, reopened },
     });
   } catch (error) {
+    console.error("Get my summary error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
 
 export const getMyAssignedTicketSummary = async (req, res) => {
   try {
-    const userId = req.body.userId;
+    const userId = req.userId; // ✅ Use req.userId
 
     const [total, pending, open, inProgress, resolved, closed, reopened] = await Promise.all([
       ticketModel.countDocuments({ assignedTo: userId }),
@@ -420,6 +493,7 @@ export const getMyAssignedTicketSummary = async (req, res) => {
       summary: { total, pending, open, inProgress, resolved, closed, reopened },
     });
   } catch (error) {
+    console.error("Get assigned summary error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -429,7 +503,6 @@ export const exportTicketsToCSV = async (req, res) => {
   try {
     let { startDate, endDate } = req.query;
 
-    // Default: current month range
     const now = new Date();
     if (!startDate) {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -458,13 +531,14 @@ export const exportTicketsToCSV = async (req, res) => {
       });
     }
 
-    // Map tickets to CSV format
     const ticketData = tickets.map(ticket => ({
       ticketId: ticket.ticketId,
       title: ticket.title,
       description: ticket.description,
       category: ticket.category,
+      priority: ticket.priority,
       status: ticket.status,
+      location: ticket.location || '',
       submittedBy: ticket.submittedBy?.name || 'Unknown',
       submittedByEmail: ticket.submittedBy?.email || '',
       assignedTo: ticket.assignedTo?.name || 'Unassigned',
@@ -476,19 +550,9 @@ export const exportTicketsToCSV = async (req, res) => {
     }));
 
     const fields = [
-      'ticketId',
-      'title',
-      'description',
-      'category',
-      'status',
-      'submittedBy',
-      'submittedByEmail',
-      'assignedTo',
-      'assignedToEmail',
-      'department',
-      'dueDate',
-      'createdAt',
-      'updatedAt'
+      'ticketId', 'title', 'description', 'category', 'priority', 'status',
+      'location', 'submittedBy', 'submittedByEmail', 'assignedTo',
+      'assignedToEmail', 'department', 'dueDate', 'createdAt', 'updatedAt'
     ];
 
     const parser = new Parser({ fields });
