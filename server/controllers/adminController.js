@@ -71,3 +71,20 @@ export const assignDepartment = async (req, res) => {
     return res.json({ success: false, message: error.message });
   }
 };
+
+
+export const getAllEmployees = async (req, res) => {
+  try {
+    const employees = await userModel
+      .find({ role: "employee" })
+      .select("name email department createdAt")
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      success: true,
+      employees,
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
+  }
+};

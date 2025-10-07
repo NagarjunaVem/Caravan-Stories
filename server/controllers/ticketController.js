@@ -1,7 +1,7 @@
 import ticketModel from "../models/ticketModel.js";
 import userModel from "../models/userModel.js";
 import transporter from "../configs/nodemailer.js";
-import { Parser } from 'json2csv'
+import { Parser } from 'json2csv';
 
 const DEPARTMENTS = [
   "IT",
@@ -90,7 +90,7 @@ export const createTicket = async (req, res) => {
       category: safeCategory,
       submittedBy,
       assignedTo,
-      status, // due auto-set to 2 days
+      status,
     });
 
     if (status === "Open") {
@@ -138,10 +138,11 @@ export const assignTicketToDept = async (req, res) => {
     const oldStatus = ticket.status;
 
     ticket.assignedTo = pick._id;
+    ticket.category = safeDepartment;
     ticket.status = ticket.status === "Pending" ? "Open" : ticket.status;
     await ticket.save();
 
-    // Notify on status change (e.g., Pending -> Open)
+    // Notify on status change
     if (oldStatus !== ticket.status) {
       await sendStatusChangeEmails({
         ticket,
@@ -164,18 +165,24 @@ export const updateTicketStatus = async (req, res) => {
     const meId = req.body.userId;
 
     const ALLOWED = ["Pending", "Open", "In Progress", "Resolved", "Closed", "Reopened"];
-    if (!ticketId || !status) return res.json({ success: false, message: "ticketId and status are required" });
-    if (!ALLOWED.includes(status)) return res.json({ success: false, message: "Invalid status" });
+    if (!ticketId || !status) {
+      return res.json({ success: false, message: "ticketId and status are required" });
+    }
+    if (!ALLOWED.includes(status)) {
+      return res.json({ success: false, message: "Invalid status" });
+    }
 
     const [ticket, me] = await Promise.all([
-      Ticket.findOne({ ticketId }),
+      ticketModel.findOne({ ticketId }),
       userModel.findById(meId).select("role"),
     ]);
+
     if (!ticket) return res.json({ success: false, message: "Ticket not found" });
     if (!me) return res.json({ success: false, message: "User not found" });
 
     const isAdmin = me.role === "admin";
     const isAssignee = String(ticket.assignedTo || "") === String(meId);
+
     if (!isAdmin && !isAssignee) {
       return res.status(403).json({ success: false, message: "Not allowed" });
     }
@@ -200,22 +207,30 @@ export const reopenTicket = async (req, res) => {
     const { ticketId, reason } = req.body;
     const meId = req.body.userId;
 
-    if (!ticketId) return res.json({ success: false, message: "ticketId is required" });
+    if (!ticketId) {
+      return res.json({ success: false, message: "ticketId is required" });
+    }
 
     const [ticket, me] = await Promise.all([
-      Ticket.findOne({ ticketId }),
+      ticketModel.findOne({ ticketId }),
       userModel.findById(meId).select("role"),
     ]);
+
     if (!ticket) return res.json({ success: false, message: "Ticket not found" });
     if (!me) return res.json({ success: false, message: "User not found" });
 
     const isAdmin = me.role === "admin";
     const isSubmitter = String(ticket.submittedBy) === String(meId);
+
     if (!isAdmin && !isSubmitter) {
       return res.status(403).json({ success: false, message: "Not allowed to reopen this ticket" });
     }
+
     if (!["Resolved", "Closed"].includes(ticket.status)) {
-      return res.json({ success: false, message: `Ticket is ${ticket.status}. Only Resolved/Closed tickets can be reopened.` });
+      return res.json({ 
+        success: false, 
+        message: `Ticket is ${ticket.status}. Only Resolved/Closed tickets can be reopened.` 
+      });
     }
 
     // Auto-assign if no assignee
@@ -253,15 +268,16 @@ export const reopenTicket = async (req, res) => {
 };
 
 // Add a comment
-// Body: { ticketId, text }
 export const addComment = async (req, res) => {
   try {
     const { ticketId, text } = req.body;
     const userId = req.body.userId;
 
-    if (!ticketId || !text) return res.json({ success: false, message: "ticketId and text are required" });
+    if (!ticketId || !text) {
+      return res.json({ success: false, message: "ticketId and text are required" });
+    }
 
-    const ticket = await Ticket.findOne({ ticketId });
+    const ticket = await ticketModel.findOne({ ticketId });
     if (!ticket) return res.json({ success: false, message: "Ticket not found" });
 
     ticket.comments.push({ user: userId, text: String(text).trim() });
@@ -277,7 +293,12 @@ export const addComment = async (req, res) => {
 export const getMySubmittedTickets = async (req, res) => {
   try {
     const userId = req.body.userId;
-    const tickets = await Ticket.find({ submittedBy: userId }).sort({ createdAt: -1 });
+    const tickets = await ticketModel
+      .find({ submittedBy: userId })
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email department")
+      .sort({ createdAt: -1 });
+
     return res.json({ success: true, tickets });
   } catch (error) {
     return res.json({ success: false, message: error.message });
@@ -287,16 +308,27 @@ export const getMySubmittedTickets = async (req, res) => {
 export const getMyAssignedTickets = async (req, res) => {
   try {
     const userId = req.body.userId;
-    const tickets = await ticketModel.find({ assignedTo: userId }).sort({ createdAt: -1 });
+    const tickets = await ticketModel
+      .find({ assignedTo: userId })
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email department")
+      .sort({ createdAt: -1 });
+
     return res.json({ success: true, tickets });
   } catch (error) {
     return res.json({ success: false, message: error.message });
   }
 };
 
+// GET ALL TICKETS (Admin only) - FIXED: Removed duplicate, added populate
 export const getAllTickets = async (req, res) => {
   try {
-    const tickets = await Ticket.find().sort({ createdAt: -1 });
+    const tickets = await ticketModel
+      .find({})
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email department")
+      .sort({ createdAt: -1 });
+
     return res.json({ success: true, tickets });
   } catch (error) {
     return res.json({ success: false, message: error.message });
@@ -315,7 +347,10 @@ export const getTicketSummary = async (req, res) => {
       ticketModel.countDocuments({ status: "Resolved" }),
       ticketModel.countDocuments({ status: "Closed" }),
       ticketModel.countDocuments({ status: "Reopened" }),
-      ticketModel.countDocuments({ dueDate: { $lt: now }, status: { $nin: ["Resolved", "Closed"] } }),
+      ticketModel.countDocuments({ 
+        dueDate: { $lt: now }, 
+        status: { $nin: ["Resolved", "Closed"] } 
+      }),
       ticketModel.aggregate([
         { $group: { _id: "$category", count: { $sum: 1 } } },
         { $project: { _id: 0, category: "$_id", count: 1 } },
@@ -389,11 +424,12 @@ export const getMyAssignedTicketSummary = async (req, res) => {
   }
 };
 
+// Export tickets to CSV
 export const exportTicketsToCSV = async (req, res) => {
   try {
     let { startDate, endDate } = req.query;
 
-    // 🗓️ Default: current month range
+    // Default: current month range
     const now = new Date();
     if (!startDate) {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -405,26 +441,67 @@ export const exportTicketsToCSV = async (req, res) => {
       endDate = lastDay.toISOString();
     }
 
-    const tickets = await ticketModel.find({
-      createdAt: {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      },
-    });
+    const tickets = await ticketModel
+      .find({
+        createdAt: {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate),
+        },
+      })
+      .populate("submittedBy", "name email")
+      .populate("assignedTo", "name email department");
 
     if (tickets.length === 0) {
-      return res.status(404).json({ message: 'No tickets found in the selected date range.' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'No tickets found in the selected date range.' 
+      });
     }
 
-    const fields = ['_id', 'subject', 'description', 'createdAt'];
+    // Map tickets to CSV format
+    const ticketData = tickets.map(ticket => ({
+      ticketId: ticket.ticketId,
+      title: ticket.title,
+      description: ticket.description,
+      category: ticket.category,
+      status: ticket.status,
+      submittedBy: ticket.submittedBy?.name || 'Unknown',
+      submittedByEmail: ticket.submittedBy?.email || '',
+      assignedTo: ticket.assignedTo?.name || 'Unassigned',
+      assignedToEmail: ticket.assignedTo?.email || '',
+      department: ticket.assignedTo?.department || '',
+      dueDate: ticket.dueDate,
+      createdAt: ticket.createdAt,
+      updatedAt: ticket.updatedAt,
+    }));
+
+    const fields = [
+      'ticketId',
+      'title',
+      'description',
+      'category',
+      'status',
+      'submittedBy',
+      'submittedByEmail',
+      'assignedTo',
+      'assignedToEmail',
+      'department',
+      'dueDate',
+      'createdAt',
+      'updatedAt'
+    ];
+
     const parser = new Parser({ fields });
-    const csv = parser.parse(tickets);
+    const csv = parser.parse(ticketData);
 
     res.header('Content-Type', 'text/csv');
     res.attachment(`tickets_${startDate.slice(0, 10)}_to_${endDate.slice(0, 10)}.csv`);
     res.send(csv);
   } catch (error) {
     console.error('CSV Export Error:', error);
-    res.status(500).json({ message: 'Server Error' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server Error during CSV export' 
+    });
   }
 };
