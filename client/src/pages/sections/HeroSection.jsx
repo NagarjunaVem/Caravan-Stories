@@ -16,7 +16,7 @@ const HeroSection = () => {
 
                         <div className="grid sm:grid-cols-2 gap-6 items-center mt-12">
                             <div className="flex flex-col items-center text-center">
-                                <h5 className="font-bold text-2xl text-indigo-600 mb-2">{ticketSummary?.total || 0}</h5>
+                                <h5 className="font-bold text-2xl text-indigo-600 mb-2">{ticketSummary?.resolved || 0}</h5>
                                 <p className="text-slate-600 text-base font-medium">Tickets Resolved</p>
                             </div>
                             <div className="flex flex-col items-center text-center">
