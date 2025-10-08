@@ -1,3 +1,4 @@
+// models/userModel.js - Add these fields to the schema
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
@@ -21,22 +22,17 @@ const userSchema = new mongoose.Schema(
     department: {
       type: String,
       enum: [
-        "IT",
-        "HR",
-        "Finance",
-        "Facilities",
-        "Management",
-        "Support",
-        "Operations",
-        "Safety",
-        "Electrical",
-        "Mechanical",
-        "Civil",
-        "Maintenance",
-        "Logistics",
-        "Procurement",
+        "IT", "HR", "Finance", "Facilities", "Management", "Support",
+        "Operations", "Safety", "Electrical", "Mechanical", "Civil",
+        "Maintenance", "Logistics", "Procurement",
       ],
     },
+    // Add these new fields
+    resetPasswordToken: String,
+    resetPasswordExpires: Date,
+    emailChangeOTP: String,
+    emailChangeOTPExpires: Date,
+    newEmailPending: String,
   },
   { timestamps: true }
 );
