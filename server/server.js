@@ -9,6 +9,7 @@ import authRouter from "./routes/authRoutes.js";
 import userRouter from "./routes/userRoutes.js";
 import adminRouter from "./routes/adminRoutes.js";
 import ticketRouter from "./routes/ticketRoutes.js";
+import profileRouter from "./routes/profileRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +37,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/tickets", ticketRouter);
+app.use("/api/profile", profileRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

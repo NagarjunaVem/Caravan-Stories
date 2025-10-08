@@ -7,6 +7,7 @@ import CitizenDash from './pages/dashboards/CitizenDash'
 import EmployeeDash from './pages/dashboards/EmployeeDash'
 import AdminDash from './pages/dashboards/AdminDash'
 import Register from './pages/Register'
+import Profile from './pages/Profile'
 
 
 const App = () => {
@@ -20,6 +21,7 @@ const App = () => {
         <Route path='/citizen-dashboard' element={<CitizenDash />} />
         <Route path='/employee-dashboard' element={< EmployeeDash />} />
         <Route path='/admin-dashboard' element={<AdminDash />} />
+        <Route path='/profile' element={<Profile />} />
       </Routes>
    </>
   )
