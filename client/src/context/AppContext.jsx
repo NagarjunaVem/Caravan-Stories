@@ -7,7 +7,7 @@ export const AppContext = createContext();
 export const AppContextProvider = ({ children }) => {
   const navigate = useNavigate();
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-  
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -54,10 +54,8 @@ export const AppContextProvider = ({ children }) => {
 
   // Fetch ticket summary (only if logged in)
   useEffect(() => {
-    if (isLoggedIn && userData) {
-      fetchTicketSummary();
-    }
-  }, [isLoggedIn, userData]);
+    fetchTicketSummary();
+  }, []);
 
   const fetchTicketSummary = async () => {
     try {

@@ -2,13 +2,12 @@
 import userModel from "../models/userModel.js";
 import ticketModel from "../models/ticketModel.js";
 
-// Get public statistics (no authentication required)
 export const getPublicStats = async (req, res) => {
   try {
     const [employeeCount, totalTickets, resolvedTickets] = await Promise.all([
       userModel.countDocuments({ role: { $in: ['employee'] } }),
       ticketModel.countDocuments({}),
-      ticketModel.countDocuments({ status: 'resolved' })
+      ticketModel.countDocuments({ status: {$in:['resolved','closed'] }})
     ]);
 
     return res.json({
