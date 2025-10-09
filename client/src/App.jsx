@@ -10,6 +10,7 @@ import Register from './pages/Register'
 import Profile from './pages/Profile'
 import VerifyEmail from './pages/VerifyEmail';
 import RoleRequests from './pages/RoleRequest'
+import ForgotPassword from './pages/ForgotPassword'
 
 
 const App = () => {
@@ -26,6 +27,7 @@ const App = () => {
         <Route path='/profile' element={<Profile />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/admin/role-requests" element={<RoleRequests />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
       </Routes>
     </>
   )

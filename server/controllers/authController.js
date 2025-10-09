@@ -634,3 +634,323 @@ export const bootstrapAdmin = async (req, res) => {
     return res.json({ success: false, message: err.message });
   }
 };
+
+
+// Send OTP for Password Reset
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.json({ success: false, message: "Email is required" });
+    }
+
+    // Find user with lowercase email
+    const user = await userModel.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.json({ success: false, message: "No account found with this email" });
+    }
+
+    // Check if account is verified (for citizens)
+    if (user.role === 'citizen' && !user.accountVerified) {
+      return res.json({ 
+        success: false, 
+        message: "Please verify your email first before resetting password" 
+      });
+    }
+
+    // Generate 6-digit OTP
+    const resetOtp = generateOTP();
+    
+    // Save OTP to user (reusing verifyOtp fields or add new fields)
+    user.resetPasswordOtp = resetOtp;
+    user.resetPasswordOtpExpireAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+    await user.save();
+
+    // Send OTP email
+    try {
+      await transporter.sendMail({
+        from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
+        to: email,
+        subject: "Password Reset OTP - Caravan Stories",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+            <div style="background-color: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #4F46E5; margin: 0; font-size: 28px;">Password Reset Request 🔐</h1>
+              </div>
+              
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 30px; text-align: center; margin: 20px 0;">
+                <p style="color: white; margin: 0 0 15px 0; font-size: 16px; font-weight: 500;">Your Password Reset OTP</p>
+                <div style="background: white; border-radius: 8px; padding: 20px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                  <span style="font-size: 36px; font-weight: bold; color: #4F46E5; letter-spacing: 10px; font-family: monospace;">${resetOtp}</span>
+                </div>
+              </div>
+
+              <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <p style="color: #374151; margin: 0 0 10px 0; font-size: 16px;">Hello <strong>${user.name}</strong>,</p>
+                <p style="color: #6b7280; margin: 0; line-height: 1.6; font-size: 14px;">
+                  We received a request to reset your password. Please enter the OTP code above to proceed with resetting your password.
+                </p>
+              </div>
+
+              <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; border-radius: 5px; padding: 15px; margin: 20px 0;">
+                <p style="color: #991b1b; margin: 0; font-size: 13px;">
+                  ⏰ <strong>Important:</strong> This OTP will expire in 15 minutes. Do not share this code with anyone.
+                </p>
+              </div>
+
+              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 5px; padding: 15px; margin: 20px 0;">
+                <p style="color: #92400e; margin: 0; font-size: 13px;">
+                  ℹ️ If you didn't request a password reset, please ignore this email and your password will remain unchanged.
+                </p>
+              </div>
+
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+              
+              <p style="color: #6b7280; font-size: 14px; text-align: center; margin: 0;">
+                Best regards,<br>
+                <strong style="color: #4F46E5;">Caravan Stories Team</strong>
+              </p>
+            </div>
+          </div>
+        `
+      });
+    } catch (mailErr) {
+      console.error("Password reset email error:", mailErr);
+      return res.json({
+        success: false,
+        message: "Failed to send password reset OTP. Please try again."
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Password reset OTP has been sent to your email",
+      email: email.toLowerCase()
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+// Reset Password with OTP Verification
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    console.log("Password reset attempt:", { email, otp, otpType: typeof otp });
+
+    if (!email || !otp || !newPassword) {
+      return res.json({ 
+        success: false, 
+        message: "Email, OTP, and new password are required" 
+      });
+    }
+
+    // Validate password length
+    if (newPassword.length < 6) {
+      return res.json({ 
+        success: false, 
+        message: "Password must be at least 6 characters long" 
+      });
+    }
+
+    // Convert OTP to string and trim
+    const otpString = String(otp).trim();
+
+    // Find user
+    const user = await userModel.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      console.log("User not found:", email);
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    console.log("Password reset - User found:", { 
+      email: user.email, 
+      storedOtp: user.resetPasswordOtp,
+      otpExpiry: user.resetPasswordOtpExpireAt,
+      now: Date.now()
+    });
+
+    // Check if OTP exists
+    if (!user.resetPasswordOtp) {
+      return res.json({ 
+        success: false, 
+        message: "No password reset request found. Please request a new OTP." 
+      });
+    }
+
+    // Verify OTP
+    if (user.resetPasswordOtp.trim() !== otpString) {
+      console.log("OTP mismatch:", { 
+        stored: user.resetPasswordOtp, 
+        received: otpString 
+      });
+      return res.json({ success: false, message: "Invalid OTP" });
+    }
+
+    // Check if OTP expired
+    if (user.resetPasswordOtpExpireAt < Date.now()) {
+      console.log("OTP expired");
+      return res.json({ 
+        success: false, 
+        message: "OTP has expired. Please request a new one." 
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear OTP
+    user.password = hashedPassword;
+    user.resetPasswordOtp = "";
+    user.resetPasswordOtpExpireAt = 0;
+    await user.save();
+
+    console.log("Password reset successful for:", email);
+
+    // Send confirmation email
+    try {
+      await transporter.sendMail({
+        from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
+        to: email,
+        subject: "Password Reset Successful - Caravan Stories",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+            <div style="background-color: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <h2 style="color: #10B981; margin: 0;">Password Reset Successful! ✅</h2>
+              </div>
+
+              <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <p style="color: #374151; margin: 0 0 15px 0; font-size: 16px;">Hello <strong>${user.name}</strong>,</p>
+                <p style="color: #6b7280; margin: 0; line-height: 1.6; font-size: 14px;">
+                  Your password has been reset successfully. You can now login with your new password.
+                </p>
+              </div>
+
+              <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; border-radius: 5px; padding: 15px; margin: 20px 0;">
+                <p style="color: #991b1b; margin: 0; font-size: 13px;">
+                  🔒 <strong>Security Alert:</strong> If you didn't make this change, please contact support immediately.
+                </p>
+              </div>
+
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" 
+                   style="background-color: #4F46E5; color: white; padding: 12px 30px; 
+                          text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500;">
+                  Login Now
+                </a>
+              </div>
+
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+              
+              <p style="color: #6b7280; font-size: 14px; text-align: center; margin: 0;">
+                Best regards,<br>
+                <strong style="color: #4F46E5;">Caravan Stories Team</strong>
+              </p>
+            </div>
+          </div>
+        `
+      });
+    } catch (mailErr) {
+      console.error("Password reset confirmation email error:", mailErr);
+      // Don't fail the password reset if email fails
+    }
+
+    return res.json({ 
+      success: true, 
+      message: "Password reset successfully! You can now login with your new password." 
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+// Resend Password Reset OTP
+export const resendResetOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.json({ success: false, message: "Email is required" });
+    }
+
+    // Find user
+    const user = await userModel.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.json({ success: false, message: "No account found with this email" });
+    }
+
+    // Generate new OTP
+    const resetOtp = generateOTP();
+    user.resetPasswordOtp = resetOtp;
+    user.resetPasswordOtpExpireAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+    await user.save();
+
+    // Send OTP email
+    try {
+      await transporter.sendMail({
+        from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
+        to: email,
+        subject: "New Password Reset OTP - Caravan Stories",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+            <div style="background-color: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #4F46E5; margin: 0; font-size: 28px;">New Password Reset OTP 🔄</h1>
+              </div>
+              
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 30px; text-align: center; margin: 20px 0;">
+                <p style="color: white; margin: 0 0 15px 0; font-size: 16px; font-weight: 500;">Your New Password Reset OTP</p>
+                <div style="background: white; border-radius: 8px; padding: 20px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                  <span style="font-size: 36px; font-weight: bold; color: #4F46E5; letter-spacing: 10px; font-family: monospace;">${resetOtp}</span>
+                </div>
+              </div>
+
+              <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <p style="color: #374151; margin: 0 0 10px 0; font-size: 16px;">Hello <strong>${user.name}</strong>,</p>
+                <p style="color: #6b7280; margin: 0; line-height: 1.6; font-size: 14px;">
+                  Here's your new OTP to reset your password.
+                </p>
+              </div>
+
+              <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; border-radius: 5px; padding: 15px; margin: 20px 0;">
+                <p style="color: #991b1b; margin: 0; font-size: 13px;">
+                  ⏰ <strong>Important:</strong> This OTP will expire in 15 minutes.
+                </p>
+              </div>
+
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+              
+              <p style="color: #6b7280; font-size: 14px; text-align: center; margin: 0;">
+                Best regards,<br>
+                <strong style="color: #4F46E5;">Caravan Stories Team</strong>
+              </p>
+            </div>
+          </div>
+        `
+      });
+    } catch (mailErr) {
+      console.error("Resend reset OTP email error:", mailErr);
+      return res.json({
+        success: false,
+        message: "Failed to send OTP. Please try again."
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "A new password reset OTP has been sent to your email"
+    });
+  } catch (error) {
+    console.error("Resend reset OTP error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};

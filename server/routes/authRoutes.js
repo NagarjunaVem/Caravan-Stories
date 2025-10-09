@@ -8,7 +8,10 @@ import {
   updateRole,
   bootstrapAdmin,
   verifyEmail,       
-  resendOTP,           
+  resendOTP,
+  forgotPassword,
+  resetPassword,
+  resendResetOTP,           
 } from "../controllers/authController.js";
 import userAuth from "../middleware/userAuth.js";
 import requireAdmin from "../middleware/requireAdmin.js";
@@ -29,5 +32,9 @@ authRouter.get("/is-auth", userAuth, isAuthenticated);
 // Admin routes (add these if you have them)
 authRouter.post("/admin/create-user", userAuth, requireAdmin, adminCreateUser);
 authRouter.put("/admin/update-role", userAuth, requireAdmin, updateRole);
+
+authRouter.post('/forgot-password', forgotPassword);
+authRouter.post('/reset-password', resetPassword);
+authRouter.post('/resend-reset-otp', resendResetOTP);
 
 export default authRouter;
