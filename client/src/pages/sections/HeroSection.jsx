@@ -1,10 +1,32 @@
-import React, { useContext } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppContext } from '../../context/AppContext'
+import axios from 'axios'
 
 const HeroSection = () => {
     const navigate = useNavigate()
-    const {isLoggedIn,ticketSummary} = useContext(AppContext)
+    const { isLoggedIn, ticketSummary, backendUrl } = useContext(AppContext)
+    const [employeeCount, setEmployeeCount] = useState(0)
+
+    // Fetch employee count
+    useEffect(() => {
+        const fetchEmployeeCount = async () => {
+            try {
+                axios.defaults.withCredentials = true
+                const response = await axios.get(`${backendUrl}/api/admin/employees`)
+                if (response.data.success) {
+                    setEmployeeCount(response.data.employees?.length || 0)
+                }
+            } catch (error) {
+                console.error('Error fetching employee count:', error)
+                setEmployeeCount(0)
+            }
+        }
+
+        if (backendUrl) {
+            fetchEmployeeCount()
+        }
+    }, [backendUrl])
 
     return (
         <>
@@ -20,7 +42,7 @@ const HeroSection = () => {
                                 <p className="text-slate-600 text-base font-medium">Tickets Resolved</p>
                             </div>
                             <div className="flex flex-col items-center text-center">
-                                <h5 className="font-bold text-2xl text-indigo-600 mb-2">50+</h5>
+                                <h5 className="font-bold text-2xl text-indigo-600 mb-2">{employeeCount}</h5>
                                 <p className="text-slate-600 text-base font-medium">Employees</p>
                             </div>
                         </div>

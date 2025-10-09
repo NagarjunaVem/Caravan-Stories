@@ -1,4 +1,3 @@
-// models/userModel.js - Add these fields to the schema
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
@@ -27,12 +26,17 @@ const userSchema = new mongoose.Schema(
         "Maintenance", "Logistics", "Procurement",
       ],
     },
-    // Add these new fields
+    // Password reset fields
     resetPasswordToken: String,
     resetPasswordExpires: Date,
+    
+    // Email change fields
     emailChangeOTP: String,
     emailChangeOTPExpires: Date,
     newEmailPending: String,
+    
+    // ✅ REMOVED: isVerified, verificationOTP, verificationOTPExpires
+    // All users in this collection are verified by default
   },
   { timestamps: true }
 );

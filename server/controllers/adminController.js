@@ -28,6 +28,7 @@ export const adminCreateEmployee = async (req, res) => {
       password: hashed,
       role: "employee",
       department,
+      isVerified: true, // ✅ Admin-created employees are auto-verified
     });
 
     return res.json({
@@ -41,7 +42,6 @@ export const adminCreateEmployee = async (req, res) => {
 };
 
 // Admin: assign or update department for an existing employee
-// Body: { employeeId, department }
 export const assignDepartment = async (req, res) => {
   try {
     const { employeeId, department } = req.body;
@@ -71,7 +71,6 @@ export const assignDepartment = async (req, res) => {
     return res.json({ success: false, message: error.message });
   }
 };
-
 
 export const getAllEmployees = async (req, res) => {
   try {

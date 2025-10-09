@@ -8,12 +8,14 @@ import EmployeeDash from './pages/dashboards/EmployeeDash'
 import AdminDash from './pages/dashboards/AdminDash'
 import Register from './pages/Register'
 import Profile from './pages/Profile'
+import VerifyEmail from './pages/VerifyEmail';
+import RoleRequests from './pages/RoleRequest'
 
 
 const App = () => {
   return (
     <>
-    <ToastContainer/>
+      <ToastContainer />
       <Routes>
         <Route path='/' element={<Home />} />
         <Route path='/login' element={<Login />} />
@@ -22,8 +24,10 @@ const App = () => {
         <Route path='/employee-dashboard' element={< EmployeeDash />} />
         <Route path='/admin-dashboard' element={<AdminDash />} />
         <Route path='/profile' element={<Profile />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/admin/role-requests" element={<RoleRequests />} />
       </Routes>
-   </>
+    </>
   )
 }
 

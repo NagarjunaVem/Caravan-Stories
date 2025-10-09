@@ -11,6 +11,6 @@ const adminRouter = express.Router();
 
 adminRouter.post("/create-user", userAuth, requireAdmin, adminCreateEmployee);
 adminRouter.post("/assign-department", userAuth, requireAdmin, assignDepartment);
-adminRouter.get("/employees", userAuth, requireAdmin, getAllEmployees); // NEW
+adminRouter.get("/employees", userAuth, requireAdmin, getAllEmployees);
 
 export default adminRouter;
