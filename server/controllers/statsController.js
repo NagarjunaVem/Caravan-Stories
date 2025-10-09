@@ -6,7 +6,7 @@ import ticketModel from "../models/ticketModel.js";
 export const getPublicStats = async (req, res) => {
   try {
     const [employeeCount, totalTickets, resolvedTickets] = await Promise.all([
-      userModel.countDocuments({ role: { $in: ['employee', 'admin'] } }),
+      userModel.countDocuments({ role: { $in: ['employee'] } }),
       ticketModel.countDocuments({}),
       ticketModel.countDocuments({ status: 'resolved' })
     ]);
