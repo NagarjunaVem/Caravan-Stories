@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 connectDB();
 
-const allowedOrigins = ['http://localhost:5173'];
+const allowedOrigins = ['http://localhost:5173,https://caravan-stories.vercel.app/'];
 
 app.use(express.json());
 app.use(cookieParser());
