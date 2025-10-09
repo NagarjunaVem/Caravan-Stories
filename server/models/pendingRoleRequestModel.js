@@ -1,44 +1,27 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const pendingRoleRequestSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-      index: true,
-    },
-    password: { type: String, required: true }, // Already hashed
-    requestedRole: {
-      type: String,
-      enum: ["employee", "admin"],
-      required: true,
-    },
-    department: {
-      type: String,
-      enum: [
-        "IT", "HR", "Finance", "Facilities", "Management", "Support",
-        "Operations", "Safety", "Electrical", "Mechanical", "Civil",
-        "Maintenance", "Logistics", "Procurement",
-      ],
-    },
-    reason: { type: String, trim: true },
-    status: {
-      type: String,
-      enum: ["pending", "approved", "rejected"],
-      default: "pending",
-    },
-    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
-    reviewedAt: { type: Date },
-    rejectionReason: { type: String },
+const pendingRoleRequestSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, lowercase: true }, // ✅ Add lowercase
+  password: { type: String, required: true },
+  requestedRole: { 
+    type: String, 
+    required: true, 
+    enum: ['employee', 'admin'] // ✅ Only employee and admin
   },
-  { timestamps: true }
-);
+  department: { type: String },
+  reason: { type: String },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  reviewedBy: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User' 
+  },
+  reviewedAt: { type: Date },
+  rejectionReason: { type: String }
+}, { timestamps: true });
 
-const pendingRoleRequestModel = mongoose.models.pendingRoleRequest || 
-  mongoose.model("pendingRoleRequest", pendingRoleRequestSchema);
-
-export default pendingRoleRequestModel;
+export default mongoose.model('PendingRoleRequest', pendingRoleRequestSchema);

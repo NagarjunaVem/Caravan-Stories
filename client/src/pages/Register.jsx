@@ -32,9 +32,9 @@ const Register = () => {
 
             const res = await axios.post(`${backendUrl}/api/auth/register`, {
                 name,
-                email,
+                email: email.toLowerCase().trim(), // ✅ Lowercase and trim
                 password,
-                role,
+                requestedRole: role,
                 department: role === 'employee' ? department : undefined,
                 reason: role !== 'citizen' ? reason : undefined,
             });
@@ -42,19 +42,39 @@ const Register = () => {
             const data = res.data;
 
             if (data.success) {
-                if (data.requiresApproval) {
-                    toast.success(data.message);
-                    navigate('/login');
-                } else if (data.needsVerification) {
-                    toast.success(data.message);
+                // First admin auto-approved
+                if (data.autoApproved) {
+                    toast.success(
+                        '🎉 ' + (data.message || 'Congratulations! You\'ve been approved as the first administrator.'),
+                        { autoClose: 5000 }
+                    );
+                    setTimeout(() => {
+                        navigate('/login');
+                    }, 1500);
+                }
+                // Regular role request (needs approval)
+                else if (data.requiresApproval) {
+                    toast.success(data.message || 'Registration request submitted. Please wait for admin approval.');
+                    setTimeout(() => {
+                        navigate('/login');
+                    }, 1500);
+                }
+                // Citizen registration (needs email verification)
+                else if (data.needsVerification) {
+                    toast.success(data.message || 'Please check your email to verify your account.');
                     navigate('/verify-email', { state: { email: data.email } });
+                }
+                // Fallback
+                else {
+                    toast.success(data.message || 'Registration successful!');
+                    navigate('/login');
                 }
             } else {
                 toast.error(data.message || 'Registration failed');
             }
         } catch (error) {
             console.error('Registration error:', error);
-            toast.error(error.response?.data?.message || 'An error occurred');
+            toast.error(error.response?.data?.message || 'An error occurred during registration');
         } finally {
             setLoading(false);
         }
@@ -203,9 +223,18 @@ const Register = () => {
                         <p className="text-xs text-zinc-600 dark:text-zinc-300 flex items-start gap-2">
                             <span className="text-lg">ℹ️</span>
                             <span>
-                                <strong className="text-blue-600 dark:text-blue-400">Admin Approval Required:</strong>
-                                {' '}Your {role} account request will be sent to administrators for review. 
-                                You'll receive an email notification once it's processed.
+                                {role === 'admin' ? (
+                                    <>
+                                        <strong className="text-blue-600 dark:text-blue-400">Admin Request:</strong>
+                                        {' '}If you're the first admin, you'll be approved automatically. Otherwise, your request will need admin approval. You'll receive an email notification once it's processed.
+                                    </>
+                                ) : (
+                                    <>
+                                        <strong className="text-blue-600 dark:text-blue-400">Admin Approval Required:</strong>
+                                        {' '}Your {role} account request will be sent to administrators for review. 
+                                        You'll receive an email notification once it's processed.
+                                    </>
+                                )}
                             </span>
                         </p>
                     </div>

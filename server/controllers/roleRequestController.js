@@ -46,6 +46,88 @@ export const getRoleRequestById = async (req, res) => {
   }
 };
 
+// Auto-approve first admin during registration
+export const checkAndAutoApproveFirstAdmin = async (request) => {
+  try {
+    // Check if there are any existing admins
+    const adminCount = await userModel.countDocuments({ role: "admin" });
+    
+    // If no admin exists and this is an admin request, auto-approve
+    if (adminCount === 0 && request.requestedRole === "admin") {
+      // ✅ Check if user already exists (lowercase email)
+      const existingUser = await userModel.findOne({ email: request.email.toLowerCase() });
+      if (existingUser) {
+        return { success: false, message: "User already exists with this email" };
+      }
+
+      // ✅ Create first admin user with accountVerified: true
+      const user = await userModel.create({
+        name: request.name,
+        email: request.email.toLowerCase(), // ✅ Lowercase email
+        password: request.password, // Already hashed
+        role: "admin",
+        department: request.department,
+        accountVerified: true, // ✅ Auto-verified
+      });
+
+      // Update request status
+      request.status = "approved";
+      request.reviewedBy = null; // Auto-approved, no reviewer
+      request.reviewedAt = new Date();
+      await request.save();
+
+      // Send approval email
+      try {
+        await transporter.sendMail({
+          from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
+          to: request.email,
+          subject: "Welcome as First Admin - Caravan Stories",
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #10B981;">Welcome as First Administrator! 🎉</h2>
+              <p>Hello ${request.name},</p>
+              <p>You have been automatically approved as the <strong>first administrator</strong> of Caravan Stories Grievance Tracker.</p>
+              ${request.department ? `<p><strong>Department:</strong> ${request.department}</p>` : ""}
+              <p>You can now login to your account and start managing the system.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" 
+                   style="background-color: #4F46E5; color: white; padding: 12px 30px; 
+                          text-decoration: none; border-radius: 5px; display: inline-block;">
+                  Login Now
+                </a>
+              </div>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+              <p style="color: #6b7280; font-size: 14px;">
+                Thanks,<br>
+                Caravan Stories Team
+              </p>
+            </div>
+          `
+        });
+      } catch (mailErr) {
+        console.error("First admin approval email error:", mailErr);
+      }
+
+      return { 
+        success: true, 
+        autoApproved: true,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          department: user.department,
+        }
+      };
+    }
+
+    return { success: false, autoApproved: false };
+  } catch (error) {
+    console.error("Auto-approve first admin error:", error);
+    return { success: false, message: error.message };
+  }
+};
+
 // Approve role request
 export const approveRoleRequest = async (req, res) => {
   try {
@@ -68,8 +150,8 @@ export const approveRoleRequest = async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const existingUser = await userModel.findOne({ email: request.email });
+    // ✅ Check if user already exists (lowercase email)
+    const existingUser = await userModel.findOne({ email: request.email.toLowerCase() });
     if (existingUser) {
       return res.json({ 
         success: false, 
@@ -77,13 +159,14 @@ export const approveRoleRequest = async (req, res) => {
       });
     }
 
-    // Create user
+    // ✅ Create user with accountVerified: true
     const user = await userModel.create({
       name: request.name,
-      email: request.email,
+      email: request.email.toLowerCase(), // ✅ Lowercase email
       password: request.password, // Already hashed
       role: request.requestedRole,
       department: request.department,
+      accountVerified: true, // ✅ Approved users are auto-verified
     });
 
     // Update request status

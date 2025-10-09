@@ -107,7 +107,7 @@ const Profile = () => {
         sessionStorage.clear();
         
         toast.success('Logged out successfully');
-        navigate('/login');
+        navigate('/');
       } else {
         toast.error(data.message || 'Logout failed');
       }
@@ -767,22 +767,6 @@ const Profile = () => {
             </div>
           )}
 
-          {/* Danger Zone */}
-          <div className="bg-white rounded-lg shadow-sm border border-red-200 p-6">
-            <h2 className="text-lg font-semibold text-red-900 mb-4">Danger Zone</h2>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium text-gray-900">Delete Account</p>
-                <p className="text-sm text-gray-600">Permanently delete your account and all data</p>
-              </div>
-              <button
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 cursor-pointer transition-colors"
-                onClick={() => toast.info('Account deletion not implemented yet')}
-              >
-                Delete Account
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

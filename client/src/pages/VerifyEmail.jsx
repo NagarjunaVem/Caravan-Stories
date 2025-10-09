@@ -8,34 +8,26 @@ import axios from 'axios';
 const VerifyEmail = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { backendUrl, setIsLoggedIn, setUserData } = useContext(AppContext);
+    const { backendUrl } = useContext(AppContext);
 
-    // Get email from navigation state or query params
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');
     const [loading, setLoading] = useState(false);
-    const [resendLoading, setResendLoading] = useState(false);
+    const [resending, setResending] = useState(false);
     const [countdown, setCountdown] = useState(0);
 
     useEffect(() => {
-        // Get email from location state (from register page)
+        // Get email from navigation state
         const stateEmail = location.state?.email;
-        // Or from query params
-        const params = new URLSearchParams(location.search);
-        const queryEmail = params.get('email');
-        
-        const userEmail = stateEmail || queryEmail;
-        
-        if (!userEmail) {
-            toast.error('No email provided. Please register again.');
+        if (stateEmail) {
+            setEmail(stateEmail);
+        } else {
+            toast.error('No email provided. Please register first.');
             navigate('/register');
-            return;
         }
-        
-        setEmail(userEmail);
     }, [location, navigate]);
 
-    // Countdown timer for resend button
+    // Countdown timer for resend
     useEffect(() => {
         if (countdown > 0) {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -43,12 +35,11 @@ const VerifyEmail = () => {
         }
     }, [countdown]);
 
-    // Handle OTP verification
     const handleVerify = async (e) => {
         e.preventDefault();
         
-        if (otp.length !== 6) {
-            toast.error('Please enter a 6-digit verification code');
+        if (!otp || otp.length !== 6) {
+            toast.error('Please enter a valid 6-digit OTP');
             return;
         }
 
@@ -57,174 +48,185 @@ const VerifyEmail = () => {
         try {
             axios.defaults.withCredentials = true;
 
-            const res = await axios.post(`${backendUrl}/api/auth/verify-registration`, {
-                email,
-                otp
-            });
-
-            const data = res.data;
-
-            if (data.success && data.user) {
-                setIsLoggedIn(true);
-                setUserData(data.user);
-                toast.success('Email verified successfully!');
-                navigate('/');
-            } else {
-                toast.error(data.message || 'Verification failed');
-            }
-        } catch (error) {
-            console.error('Verification error:', error);
-            toast.error(error.response?.data?.message || 'Verification failed');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Handle resend OTP
-    const handleResend = async () => {
-        if (countdown > 0) return;
-
-        setResendLoading(true);
-
-        try {
-            axios.defaults.withCredentials = true;
-
-            const res = await axios.post(`${backendUrl}/api/auth/resend-verification`, {
-                email
+            const res = await axios.post(`${backendUrl}/api/auth/verify-email`, {
+                email: email.toLowerCase(),
+                otp: otp.trim()
             });
 
             const data = res.data;
 
             if (data.success) {
-                toast.success('Verification code sent! Check your email.');
-                setCountdown(60); // 60 seconds cooldown
-                setOtp(''); // Clear OTP input
+                toast.success(data.message || 'Email verified successfully! You can now login.');
+                setTimeout(() => {
+                    navigate('/login');
+                }, 1500);
             } else {
-                toast.error(data.message || 'Failed to resend code');
+                toast.error(data.message || 'Verification failed');
             }
         } catch (error) {
-            console.error('Resend error:', error);
-            toast.error(error.response?.data?.message || 'Failed to resend code');
+            console.error('Verification error:', error);
+            toast.error(error.response?.data?.message || 'An error occurred during verification');
         } finally {
-            setResendLoading(false);
+            setLoading(false);
         }
     };
 
-    // Handle OTP input (only numbers, max 6 digits)
+    const handleResendOTP = async () => {
+        if (countdown > 0) {
+            toast.info(`Please wait ${countdown} seconds before requesting a new OTP`);
+            return;
+        }
+
+        setResending(true);
+
+        try {
+            axios.defaults.withCredentials = true;
+
+            const res = await axios.post(`${backendUrl}/api/auth/resend-otp`, {
+                email: email.toLowerCase()
+            });
+
+            const data = res.data;
+
+            if (data.success) {
+                toast.success(data.message || 'A new OTP has been sent to your email');
+                setCountdown(60); // 60 seconds cooldown
+                setOtp(''); // Clear current OTP
+            } else {
+                toast.error(data.message || 'Failed to resend OTP');
+            }
+        } catch (error) {
+            console.error('Resend OTP error:', error);
+            toast.error(error.response?.data?.message || 'Failed to resend OTP');
+        } finally {
+            setResending(false);
+        }
+    };
+
     const handleOtpChange = (e) => {
-        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-        setOtp(value);
+        const value = e.target.value.replace(/\D/g, ''); // Only digits
+        if (value.length <= 6) {
+            setOtp(value);
+        }
     };
 
     return (
-        <div 
-            className="flex items-center justify-center min-h-screen bg-cover bg-center bg-no-repeat px-4 sm:px-6 lg:px-8" 
-            style={{ backgroundImage: `url(${bgImg})` }}
-        >
+        <div className="flex items-center justify-center min-h-screen bg-cover bg-center bg-no-repeat px-4 sm:px-6 lg:px-8" style={{ backgroundImage: `url(${bgImg})` }}>
             <form
                 onSubmit={handleVerify}
-                className="relative z-10 w-full max-w-[90%] xs:max-w-[350px] sm:max-w-md md:max-w-lg lg:max-w-xl 
-                sm:w-[350px] text-center border border-white/20 rounded-2xl 
-                px-6 py-6 sm:px-8 sm:py-8 
+                className="relative z-10 w-full max-w-[90%] xs:max-w-[400px] sm:max-w-md 
+                text-center border border-white/20 rounded-2xl 
+                px-6 py-8 sm:px-8 sm:py-10 
                 backdrop-blur-md bg-white/10 dark:bg-zinc-900/40 shadow-xl"
             >
-                {/* Icon */}
-                <div className="flex justify-center mt-4">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#FFC400]/20 flex items-center justify-center">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="32"
-                            height="32"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="text-[#FFC400]"
-                            viewBox="0 0 24 24"
-                        >
-                            <rect width="20" height="16" x="2" y="4" rx="2" />
-                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                <div className="mb-6">
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#FFC400] to-[#FFD700] rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                     </div>
+                    <h1 className="text-zinc-900 dark:text-white text-2xl sm:text-3xl font-medium">
+                        Verify Your Email
+                    </h1>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-2">
+                        We've sent a 6-digit verification code to
+                    </p>
+                    <p className="text-zinc-700 dark:text-zinc-300 text-sm font-medium mt-1">
+                        {email}
+                    </p>
                 </div>
 
-                <h1 className="text-zinc-900 dark:text-white text-2xl sm:text-3xl mt-4 sm:mt-6 font-medium">
-                    Verify Your Email
-                </h1>
-                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-2 px-4">
-                    We've sent a 6-digit verification code to
-                </p>
-                <p className="text-zinc-700 dark:text-zinc-300 text-sm font-medium mt-1 mb-6">
-                    {email}
-                </p>
-
                 {/* OTP Input */}
-                <div className="flex items-center justify-center w-full mt-4 sm:mt-6">
+                <div className="mb-6">
+                    <label className="block text-left text-zinc-600 dark:text-zinc-400 text-sm mb-2">
+                        Enter OTP Code
+                    </label>
                     <input
                         type="text"
                         inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
                         placeholder="000000"
-                        className="w-full max-w-[200px] h-14 sm:h-16 text-center text-2xl sm:text-3xl font-bold 
-                        tracking-[0.5em] bg-white/5 dark:bg-zinc-800/50 
-                        border-2 border-zinc-300/80 dark:border-zinc-700 
-                        rounded-xl text-zinc-900 dark:text-zinc-200 
-                        placeholder-zinc-400 dark:placeholder-zinc-500 
-                        outline-none focus:border-[#FFC400] transition-colors
-                        backdrop-blur-lg"
+                        className="w-full bg-white/5 dark:bg-zinc-800/50 border border-zinc-300/80 dark:border-zinc-700 
+                        rounded-xl px-4 py-4 text-zinc-900 dark:text-white 
+                        placeholder-zinc-500 dark:placeholder-zinc-400 
+                        outline-none text-center text-2xl font-bold tracking-[0.5em] 
+                        focus:border-[#FFC400] transition-colors"
                         value={otp}
                         onChange={handleOtpChange}
-                        maxLength={6}
                         required
                         autoFocus
                     />
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 text-left">
+                        {otp.length}/6 digits entered
+                    </p>
+                </div>
+
+                {/* Info Box */}
+                <div className="mb-6 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300 flex items-start gap-2">
+                        <span className="text-base">💡</span>
+                        <span className="text-left">
+                            Check your email inbox (and spam folder) for the verification code. The code is valid for 24 hours.
+                        </span>
+                    </p>
                 </div>
 
                 {/* Verify Button */}
                 <button
                     type="submit"
-                    className={`mt-6 sm:mt-8 w-full h-11 sm:h-12 rounded-full text-white text-sm sm:text-base font-medium 
-                    bg-[#FFC400] hover:bg-[#b58a00b4] transition-all 
+                    className={`w-full h-12 rounded-full text-white text-base font-medium 
+                    bg-[#FFC400] hover:bg-[#b58a00] transition-all shadow-lg hover:shadow-xl
                     ${loading || otp.length !== 6 ? 'opacity-60 cursor-not-allowed' : ''}`}
                     disabled={loading || otp.length !== 6}
                 >
-                    {loading ? 'Verifying...' : 'Verify Email'}
+                    {loading ? (
+                        <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Verifying...
+                        </span>
+                    ) : (
+                        '✓ Verify Email'
+                    )}
                 </button>
 
-                {/* Resend Code */}
+                {/* Resend OTP */}
                 <div className="mt-6">
-                    <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm">
-                        Didn't receive the code?
-                    </p>
                     <button
                         type="button"
-                        onClick={handleResend}
-                        disabled={resendLoading || countdown > 0}
-                        className={`mt-2 text-[#FFC400] hover:text-[#b58a00] font-medium text-sm transition-colors
-                        ${resendLoading || countdown > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        onClick={handleResendOTP}
+                        disabled={resending || countdown > 0}
+                        className={`text-sm font-medium transition-colors
+                        ${resending || countdown > 0 
+                            ? 'text-zinc-400 dark:text-zinc-600 cursor-not-allowed' 
+                            : 'text-[#FFC400] hover:text-[#b58a00] hover:underline'}`}
                     >
-                        {resendLoading ? 'Sending...' : countdown > 0 ? `Resend in ${countdown}s` : 'Resend Code'}
+                        {resending ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Sending...
+                            </span>
+                        ) : countdown > 0 ? (
+                            `Resend OTP in ${countdown}s`
+                        ) : (
+                            '🔄 Resend OTP'
+                        )}
                     </button>
                 </div>
 
-                {/* Back to Register */}
-                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-6 mb-4">
-                    Wrong email?{' '}
-                    <Link
-                        to="/register"
-                        className="text-[#FFC400] dark:text-[#FFC400] hover:underline font-medium"
-                    >
-                        Register again
+                {/* Back to Login */}
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-6">
+                    Already verified?{' '}
+                    <Link to="/login" className="text-[#FFC400] hover:text-[#b58a00] hover:underline font-medium transition-colors">
+                        Login here
                     </Link>
                 </p>
-
-                {/* Help Text */}
-                <div className="mt-6 p-3 sm:p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                    <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                        💡 <strong>Tip:</strong> Check your spam folder if you don't see the email. 
-                        The code expires in 10 minutes.
-                    </p>
-                </div>
             </form>
         </div>
     );

@@ -9,12 +9,10 @@ const Login = () => {
     const navigate = useNavigate();
     const { backendUrl, setIsLoggedIn, setUserData } = useContext(AppContext);
 
-    // Form input states
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // Handle form submission
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -22,30 +20,46 @@ const Login = () => {
         try {
             axios.defaults.withCredentials = true;
 
-            const res = await axios.post(`${backendUrl}/api/auth/login`, {
-                email,
+            // ✅ Step 1: Login
+            const loginRes = await axios.post(`${backendUrl}/api/auth/login`, {
+                email: email.toLowerCase().trim(), // ✅ Lowercase and trim
                 password
             });
 
-            const data = res.data;
+            const loginData = loginRes.data;
 
-            if (data.success && data.user?.role) {
-                setIsLoggedIn(true);
-                setUserData(data.user);
-                toast.success('Login successful!');
-                navigate('/');
+            if (loginData.success) {
+                // ✅ Step 2: Fetch user data after successful login
+                try {
+                    const userRes = await axios.get(`${backendUrl}/api/auth/is-auth`, {
+                        withCredentials: true
+                    });
+
+                    if (userRes.data.success && userRes.data.user) {
+                        setIsLoggedIn(true);
+                        setUserData(userRes.data.user);
+                        toast.success('Login successful!');
+                        navigate('/');
+                    } else {
+                        toast.error('Failed to fetch user data');
+                    }
+                } catch (userError) {
+                    console.error('Fetch user error:', userError);
+                    toast.error('Failed to fetch user data');
+                }
             } else {
                 // ✅ Handle unverified users
-                if (data.needsVerification) {
-                    toast.info(data.message);
-                    navigate('/verify-email', { state: { email } });
+                if (loginData.needsVerification) {
+                    toast.info(loginData.message || 'Please verify your email first');
+                    navigate('/verify-email', { state: { email: loginData.email || email.toLowerCase() } });
                     return;
                 }
-                toast.error(data.message || 'Login failed');
+                toast.error(loginData.message || 'Login failed');
             }
         } catch (error) {
             console.error('Login error:', error);
-            toast.error(error.response?.data?.message || 'An error occurred during login');
+            const errorMessage = error.response?.data?.message || 'An error occurred during login';
+            toast.error(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -55,20 +69,20 @@ const Login = () => {
         <div className="flex items-center justify-center min-h-screen bg-cover bg-center bg-no-repeat px-4 sm:px-6 lg:px-8" style={{ backgroundImage: `url(${bgImg})` }}>
             <form
                 onSubmit={handleSubmit}
-                className="relative z-10 w-full max-w-[90%] xs:max-w-[350px] sm:max-w-md md:max-w-lg lg:max-w-xl 
-                sm:w-[350px] text-center border border-white/20 rounded-2xl 
+                className="relative z-10 w-full max-w-[90%] xs:max-w-[350px] sm:max-w-md 
+                text-center border border-white/20 rounded-2xl 
                 px-6 py-6 sm:px-8 sm:py-8 
                 backdrop-blur-md bg-white/10 dark:bg-zinc-900/40 shadow-xl"
             >
-                <h1 className="text-zinc-900 dark:text-white text-2xl sm:text-3xl mt-6 sm:mt-10 font-medium">
+                <h1 className="text-zinc-900 dark:text-white text-2xl sm:text-3xl mt-6 font-medium">
                     Login
                 </h1>
-                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-2 pb-4 sm:pb-6">
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-2 pb-6">
                     Please login to continue
                 </p>
 
                 {/* Email input */}
-                <div className="flex items-center w-full mt-3 sm:mt-4 bg-white/5 dark:bg-zinc-800/50 border border-zinc-300/80 dark:border-zinc-700 h-11 sm:h-12 rounded-full overflow-hidden pl-4 sm:pl-6 gap-2 backdrop-blur-lg">
+                <div className="flex items-center w-full mt-4 bg-white/5 dark:bg-zinc-800/50 border border-zinc-300/80 dark:border-zinc-700 h-11 sm:h-12 rounded-full overflow-hidden pl-4 sm:pl-6 gap-2 backdrop-blur-lg">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="16"
@@ -76,8 +90,6 @@ const Login = () => {
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
                         className="text-zinc-500 dark:text-zinc-400 flex-shrink-0"
                         viewBox="0 0 24 24"
                     >
@@ -86,9 +98,8 @@ const Login = () => {
                     </svg>
                     <input
                         type="email"
-                        placeholder="Email id"
+                        placeholder="Email address"
                         className="bg-transparent text-zinc-900 dark:text-zinc-200 placeholder-zinc-500 dark:placeholder-zinc-400 outline-none text-sm w-full h-full pr-4"
-                        name="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -96,7 +107,7 @@ const Login = () => {
                 </div>
 
                 {/* Password input */}
-                <div className="flex items-center mt-3 sm:mt-4 w-full bg-white/5 dark:bg-zinc-800/50 border border-zinc-300/80 dark:border-zinc-700 h-11 sm:h-12 rounded-full overflow-hidden pl-4 sm:pl-6 gap-2 backdrop-blur-lg">
+                <div className="flex items-center mt-4 w-full bg-white/5 dark:bg-zinc-800/50 border border-zinc-300/80 dark:border-zinc-700 h-11 sm:h-12 rounded-full overflow-hidden pl-4 sm:pl-6 gap-2 backdrop-blur-lg">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="16"
@@ -104,8 +115,6 @@ const Login = () => {
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
                         className="text-zinc-500 dark:text-zinc-400 flex-shrink-0"
                         viewBox="0 0 24 24"
                     >
@@ -116,7 +125,6 @@ const Login = () => {
                         type="password"
                         placeholder="Password"
                         className="bg-transparent text-zinc-900 dark:text-zinc-200 placeholder-zinc-500 dark:placeholder-zinc-400 outline-none text-sm w-full h-full pr-4"
-                        name="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -124,7 +132,7 @@ const Login = () => {
                     />
                 </div>
 
-                {/* ✅ Forgot Password Link */}
+                {/* Forgot Password Link */}
                 <div className="text-right mt-2">
                     <Link
                         to="/forgot-password"
@@ -137,19 +145,30 @@ const Login = () => {
                 {/* Submit button */}
                 <button
                     type="submit"
-                    className={`mt-4 sm:mt-6 w-full h-11 sm:h-12 rounded-full text-white text-sm sm:text-base font-medium bg-[#FFC400] hover:bg-[#b58a00b4] transition-all ${loading ? 'opacity-60 cursor-not-allowed' : ''
-                        }`}
+                    className={`mt-6 w-full h-11 sm:h-12 rounded-full text-white text-sm sm:text-base font-medium 
+                    bg-[#FFC400] hover:bg-[#b58a00] transition-all shadow-lg hover:shadow-xl
+                    ${loading ? 'opacity-60 cursor-not-allowed' : ''}`}
                     disabled={loading}
                 >
-                    {loading ? 'Logging in...' : 'Login'}
+                    {loading ? (
+                        <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Logging in...
+                        </span>
+                    ) : (
+                        '✓ Login'
+                    )}
                 </button>
 
-                {/* Toggle to register */}
-                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-3 sm:mt-4 mb-6 sm:mb-11">
+                {/* Register link */}
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-4 mb-6">
                     Don't have an account?{' '}
                     <Link
                         to="/register"
-                        className="text-[#FFC400] dark:text-[#FFC400] hover:underline font-medium"
+                        className="text-[#FFC400] hover:text-[#b58a00] hover:underline font-medium transition-colors"
                     >
                         Sign up
                     </Link>
