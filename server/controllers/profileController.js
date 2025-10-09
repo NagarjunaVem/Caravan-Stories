@@ -15,6 +15,7 @@ const generateResetToken = () => {
 };
 
 // Get user profile
+// Get user profile
 export const getUserProfile = async (req, res) => {
   try {
     const userId = req.userId;
@@ -37,6 +38,7 @@ export const getUserProfile = async (req, res) => {
         department: user.department,
         createdAt: user.createdAt,
         newEmailPending: user.newEmailPending,
+        // ✅ REMOVED: isVerified (no longer needed)
       }
     });
   } catch (error) {
@@ -113,7 +115,7 @@ export const changePasswordWithOld = async (req, res) => {
       await transporter.sendMail({
         from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
         to: user.email,
-        subject: "Password Changed Successfully - HalfStack",
+        subject: "Password Changed Successfully - Caravan Stories",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #4F46E5;">Password Changed</h2>
@@ -123,7 +125,7 @@ export const changePasswordWithOld = async (req, res) => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
             <p style="color: #6b7280; font-size: 14px;">
               Thanks,<br>
-              HalfStack Team
+              Caravan Stories Team
             </p>
           </div>
         `
@@ -142,7 +144,7 @@ export const changePasswordWithOld = async (req, res) => {
   }
 };
 
-// Request password reset via email
+// Request password reset via email (TOKEN-BASED - OLD METHOD)
 export const requestPasswordReset = async (req, res) => {
   try {
     const { email } = req.body;
@@ -174,7 +176,7 @@ export const requestPasswordReset = async (req, res) => {
       await transporter.sendMail({
         from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
         to: user.email,
-        subject: "Password Reset Request - HalfStack",
+        subject: "Password Reset Request - Caravan Stories",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #4F46E5;">Password Reset Request</h2>
@@ -194,7 +196,7 @@ export const requestPasswordReset = async (req, res) => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
             <p style="color: #6b7280; font-size: 14px;">
               Thanks,<br>
-              HalfStack Team
+              Caravan Stories Team
             </p>
           </div>
         `
@@ -214,7 +216,7 @@ export const requestPasswordReset = async (req, res) => {
   }
 };
 
-// Reset password with token
+// Reset password with token (TOKEN-BASED - OLD METHOD)
 export const resetPasswordWithToken = async (req, res) => {
   try {
     const { email, token, newPassword } = req.body;
@@ -249,7 +251,7 @@ export const resetPasswordWithToken = async (req, res) => {
       await transporter.sendMail({
         from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
         to: user.email,
-        subject: "Password Reset Successful - HalfStack",
+        subject: "Password Reset Successful - Caravan Stories",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #4F46E5;">Password Reset Successful</h2>
@@ -260,7 +262,7 @@ export const resetPasswordWithToken = async (req, res) => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
             <p style="color: #6b7280; font-size: 14px;">
               Thanks,<br>
-              HalfStack Team
+              Caravan Stories Team
             </p>
           </div>
         `
@@ -275,6 +277,204 @@ export const resetPasswordWithToken = async (req, res) => {
     });
   } catch (error) {
     console.error("Reset password error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+// ✅ NEW: Request password reset OTP
+export const requestPasswordResetOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.json({ success: false, message: "Email is required" });
+    }
+
+    const user = await userModel.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // Don't reveal if user exists
+      return res.json({ 
+        success: true, 
+        message: "If an account exists with this email, a verification code has been sent" 
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    user.resetPasswordToken = otp; // Reuse this field for OTP
+    user.resetPasswordExpires = Date.now() + 600000; // 10 minutes
+    await user.save();
+
+    // Send OTP email
+    try {
+      await transporter.sendMail({
+        from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
+        to: user.email,
+        subject: "Password Reset Code - Caravan Stories",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #4F46E5;">Password Reset Request</h2>
+            <p>Hello ${user.name},</p>
+            <p>You requested to reset your password. Please use the verification code below:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <div style="background-color: #f3f4f6; padding: 20px; border-radius: 10px; display: inline-block;">
+                <h1 style="color: #4F46E5; margin: 0; letter-spacing: 5px;">${otp}</h1>
+              </div>
+            </div>
+            <p><strong>This code will expire in 10 minutes.</strong></p>
+            <p>If you didn't request this, please ignore this email.</p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+            <p style="color: #6b7280; font-size: 14px;">
+              Thanks,<br>
+              Caravan Stories Team
+            </p>
+          </div>
+        `
+      });
+
+      return res.json({
+        success: true,
+        message: "If an account exists with this email, a verification code has been sent",
+        email: user.email
+      });
+    } catch (mailErr) {
+      console.error("Email send error:", mailErr);
+      return res.json({ success: false, message: "Failed to send verification email" });
+    }
+  } catch (error) {
+    console.error("Request reset OTP error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+// ✅ NEW: Verify OTP and reset password
+export const verifyResetOTP = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.json({ success: false, message: "Email, verification code, and new password are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.json({ success: false, message: "Password must be at least 6 characters" });
+    }
+
+    const user = await userModel.findOne({
+      email: email.toLowerCase(),
+      resetPasswordToken: otp,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.json({ success: false, message: "Invalid or expired verification code" });
+    }
+
+    // Update password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    // Send confirmation email
+    try {
+      await transporter.sendMail({
+        from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
+        to: user.email,
+        subject: "Password Reset Successful - Caravan Stories",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #4F46E5;">Password Reset Successful</h2>
+            <p>Hello ${user.name},</p>
+            <p>Your password has been successfully reset.</p>
+            <p>You can now login with your new password.</p>
+            <p>If you did not make this change, please contact support immediately.</p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+            <p style="color: #6b7280; font-size: 14px;">
+              Thanks,<br>
+              Caravan Stories Team
+            </p>
+          </div>
+        `
+      });
+    } catch (mailErr) {
+      console.error("Email send error:", mailErr);
+    }
+
+    return res.json({
+      success: true,
+      message: "Password reset successful. You can now login with your new password."
+    });
+  } catch (error) {
+    console.error("Verify reset OTP error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+// ✅ NEW: Resend password reset OTP
+export const resendPasswordResetOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.json({ success: false, message: "Email is required" });
+    }
+
+    const user = await userModel.findOne({ email: email.toLowerCase() });
+    
+    if (!user) {
+      return res.json({ 
+        success: true, 
+        message: "If an account exists with this email, a verification code has been sent" 
+      });
+    }
+
+    // Generate new OTP
+    const otp = generateOTP();
+    user.resetPasswordToken = otp;
+    user.resetPasswordExpires = Date.now() + 600000; // 10 minutes
+    await user.save();
+
+    // Send OTP email
+    try {
+      await transporter.sendMail({
+        from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
+        to: user.email,
+        subject: "New Password Reset Code - Caravan Stories",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #4F46E5;">New Password Reset Code</h2>
+            <p>Hello ${user.name},</p>
+            <p>Here is your new password reset verification code:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <div style="background-color: #f3f4f6; padding: 20px; border-radius: 10px; display: inline-block;">
+                <h1 style="color: #4F46E5; margin: 0; letter-spacing: 5px;">${otp}</h1>
+              </div>
+            </div>
+            <p><strong>This code will expire in 10 minutes.</strong></p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+            <p style="color: #6b7280; font-size: 14px;">
+              Thanks,<br>
+              Caravan Stories Team
+            </p>
+          </div>
+        `
+      });
+
+      return res.json({
+        success: true,
+        message: "New verification code sent to your email"
+      });
+    } catch (mailErr) {
+      console.error("Email send error:", mailErr);
+      return res.json({ 
+        success: false, 
+        message: "Failed to send verification email" 
+      });
+    }
+  } catch (error) {
+    console.error("Resend reset OTP error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -329,7 +529,7 @@ export const requestEmailChange = async (req, res) => {
       await transporter.sendMail({
         from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
         to: newEmail,
-        subject: "Email Change Verification - HalfStack",
+        subject: "Email Change Verification - Caravan Stories",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #4F46E5;">Email Change Verification</h2>
@@ -345,7 +545,7 @@ export const requestEmailChange = async (req, res) => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
             <p style="color: #6b7280; font-size: 14px;">
               Thanks,<br>
-              HalfStack Team
+              Caravan Stories Team
             </p>
           </div>
         `
@@ -419,7 +619,7 @@ export const verifyEmailChangeOTP = async (req, res) => {
       await transporter.sendMail({
         from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
         to: oldEmail,
-        subject: "Email Address Changed - HalfStack",
+        subject: "Email Address Changed - Caravan Stories",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #4F46E5;">Email Address Changed</h2>
@@ -429,7 +629,7 @@ export const verifyEmailChangeOTP = async (req, res) => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
             <p style="color: #6b7280; font-size: 14px;">
               Thanks,<br>
-              HalfStack Team
+              Caravan Stories Team
             </p>
           </div>
         `
@@ -439,7 +639,7 @@ export const verifyEmailChangeOTP = async (req, res) => {
       await transporter.sendMail({
         from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
         to: user.email,
-        subject: "Email Address Updated - HalfStack",
+        subject: "Email Address Updated - Caravan Stories",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #4F46E5;">Welcome to Your New Email</h2>
@@ -449,7 +649,7 @@ export const verifyEmailChangeOTP = async (req, res) => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
             <p style="color: #6b7280; font-size: 14px;">
               Thanks,<br>
-              HalfStack Team
+              Caravan Stories Team
             </p>
           </div>
         `

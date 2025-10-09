@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import bgImg from '../assets/bg.jpg';
-
 import axios from 'axios';
 
 const Login = () => {
@@ -36,6 +35,12 @@ const Login = () => {
                 toast.success('Login successful!');
                 navigate('/');
             } else {
+                // ✅ Handle unverified users
+                if (data.needsVerification) {
+                    toast.info(data.message);
+                    navigate('/verify-email', { state: { email } });
+                    return;
+                }
                 toast.error(data.message || 'Login failed');
             }
         } catch (error) {
@@ -119,6 +124,16 @@ const Login = () => {
                     />
                 </div>
 
+                {/* ✅ Forgot Password Link */}
+                <div className="text-right mt-2">
+                    <Link
+                        to="/forgot-password"
+                        className="text-xs sm:text-sm text-[#FFC400] hover:text-[#b58a00] hover:underline font-medium"
+                    >
+                        Forgot Password?
+                    </Link>
+                </div>
+
                 {/* Submit button */}
                 <button
                     type="submit"
@@ -128,8 +143,6 @@ const Login = () => {
                 >
                     {loading ? 'Logging in...' : 'Login'}
                 </button>
-                
-
 
                 {/* Toggle to register */}
                 <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm mt-3 sm:mt-4 mb-6 sm:mb-11">
