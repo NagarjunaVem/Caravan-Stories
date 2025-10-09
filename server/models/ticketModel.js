@@ -1,8 +1,9 @@
 import mongoose from "mongoose";
 
+
 const commentSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     text: { type: String, required: true, trim: true },
     createdAt: { type: Date, default: Date.now },
   },
@@ -35,10 +36,10 @@ const ticketSchema = new mongoose.Schema(
     },
     submittedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "user",
+      ref: "User",
       required: true,
     },
-    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     location: { type: String, trim: true },
     image: { type: String }, // URL or file path
     dueDate: { type: Date },

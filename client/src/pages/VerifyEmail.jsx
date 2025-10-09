@@ -209,7 +209,7 @@ const VerifyEmail = () => {
               Verifying...
             </span>
           ) : (
-            '✓ Verify Email'
+            'Verify Email'
           )}
         </button>
 
