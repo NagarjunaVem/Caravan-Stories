@@ -1,6 +1,6 @@
 // src/components/citizen/modals/TicketDetailsModal.jsx
 import { getPriorityColor } from '../utils/helpers';
-import StatusTimeline from '../StatusTimeline';
+import StatusTimeline from '../StatusTImeline';
 
 const TicketDetailsModal = ({ isOpen, onClose, ticket, onReopen, backendUrl }) => {
   if (!isOpen || !ticket) return null;
