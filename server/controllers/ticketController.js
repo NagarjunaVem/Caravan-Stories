@@ -54,7 +54,7 @@ const sendStatusChangeEmails = async ({ ticket, oldStatus, newStatus, reason }) 
 export const createTicket = async (req, res) => {
   try {
     const { title, description, category, location, priority } = req.body;
-    const submittedBy = req.userId; // ✅ Use req.userId
+    const submittedBy = req.userId;
 
     if (!submittedBy) {
       return res.status(401).json({ success: false, message: "User not authenticated" });
@@ -125,7 +125,7 @@ export const createTicket = async (req, res) => {
 export const getTicketDetails = async (req, res) => {
   try {
     const { ticketId } = req.params;
-    const userId = req.userId; // ✅ Use req.userId
+    const userId = req.userId;
 
     const ticket = await ticketModel
       .findOne({ ticketId })
@@ -208,7 +208,7 @@ export const assignTicketToDept = async (req, res) => {
 export const updateTicketStatus = async (req, res) => {
   try {
     const { ticketId, status } = req.body;
-    const meId = req.userId; // ✅ Use req.userId
+    const meId = req.userId;
 
     const ALLOWED = ["Pending", "Open", "In Progress", "Resolved", "Closed", "Reopened"];
     if (!ticketId || !status) {
@@ -258,7 +258,7 @@ export const updateTicketStatus = async (req, res) => {
 export const reopenTicket = async (req, res) => {
   try {
     const { ticketId, reason } = req.body;
-    const meId = req.userId; // ✅ Use req.userId
+    const meId = req.userId;
 
     if (!ticketId) {
       return res.json({ success: false, message: "ticketId is required" });
@@ -332,7 +332,7 @@ export const reopenTicket = async (req, res) => {
 export const addComment = async (req, res) => {
   try {
     const { ticketId, text } = req.body;
-    const userId = req.userId; // ✅ Use req.userId
+    const userId = req.userId;
 
     if (!ticketId || !text) {
       return res.json({ success: false, message: "ticketId and text are required" });
@@ -361,7 +361,7 @@ export const addComment = async (req, res) => {
 // Lists
 export const getMySubmittedTickets = async (req, res) => {
   try {
-    const userId = req.userId; // ✅ Use req.userId
+    const userId = req.userId;
     const tickets = await ticketModel
       .find({ submittedBy: userId })
       .populate("submittedBy", "name email")
@@ -377,7 +377,7 @@ export const getMySubmittedTickets = async (req, res) => {
 
 export const getMyAssignedTickets = async (req, res) => {
   try {
-    const userId = req.userId; // ✅ Use req.userId
+    const userId = req.userId;
     const tickets = await ticketModel
       .find({ assignedTo: userId })
       .populate("submittedBy", "name email")
@@ -406,11 +406,11 @@ export const getAllTickets = async (req, res) => {
   }
 };
 
-// Global/public summary
+// ✅ Global/public summary - UPDATED
 export const getTicketSummary = async (req, res) => {
   try {
     const now = new Date();
-    const [total, pending, open, inProgress, resolved, closed, reopened, overdue, byCategory] = await Promise.all([
+    const [total, pending, open, inProgress, resolved, closed, reopened, overdue, completed, byCategory] = await Promise.all([
       ticketModel.countDocuments({}),
       ticketModel.countDocuments({ status: "Pending" }),
       ticketModel.countDocuments({ status: "Open" }),
@@ -422,6 +422,8 @@ export const getTicketSummary = async (req, res) => {
         dueDate: { $lt: now }, 
         status: { $nin: ["Resolved", "Closed"] } 
       }),
+      // ✅ Combined count for both Resolved and Closed
+      ticketModel.countDocuments({ status: { $in: ["Resolved", "Closed"] } }),
       ticketModel.aggregate([
         { $group: { _id: "$category", count: { $sum: 1 } } },
         { $project: { _id: 0, category: "$_id", count: 1 } },
@@ -439,6 +441,7 @@ export const getTicketSummary = async (req, res) => {
         resolved,
         closed,
         reopened,
+        completed, // ✅ Combined Resolved + Closed
         overdue,
         byCategory,
       },
@@ -449,12 +452,12 @@ export const getTicketSummary = async (req, res) => {
   }
 };
 
-// My summaries
+// ✅ My summaries - UPDATED
 export const getMyTicketSummary = async (req, res) => {
   try {
-    const userId = req.userId; // ✅ Use req.userId
+    const userId = req.userId;
 
-    const [total, pending, open, inProgress, resolved, closed, reopened] = await Promise.all([
+    const [total, pending, open, inProgress, resolved, closed, reopened, completed] = await Promise.all([
       ticketModel.countDocuments({ submittedBy: userId }),
       ticketModel.countDocuments({ submittedBy: userId, status: "Pending" }),
       ticketModel.countDocuments({ submittedBy: userId, status: "Open" }),
@@ -462,11 +465,25 @@ export const getMyTicketSummary = async (req, res) => {
       ticketModel.countDocuments({ submittedBy: userId, status: "Resolved" }),
       ticketModel.countDocuments({ submittedBy: userId, status: "Closed" }),
       ticketModel.countDocuments({ submittedBy: userId, status: "Reopened" }),
+      // ✅ Combined count
+      ticketModel.countDocuments({ 
+        submittedBy: userId, 
+        status: { $in: ["Resolved", "Closed"] } 
+      }),
     ]);
 
     return res.json({
       success: true,
-      summary: { total, pending, open, inProgress, resolved, closed, reopened },
+      summary: { 
+        total, 
+        pending, 
+        open, 
+        inProgress, 
+        resolved, 
+        closed, 
+        reopened,
+        completed // ✅ Added
+      },
     });
   } catch (error) {
     console.error("Get my summary error:", error);
@@ -474,11 +491,12 @@ export const getMyTicketSummary = async (req, res) => {
   }
 };
 
+// ✅ Assigned summary - UPDATED
 export const getMyAssignedTicketSummary = async (req, res) => {
   try {
-    const userId = req.userId; // ✅ Use req.userId
+    const userId = req.userId;
 
-    const [total, pending, open, inProgress, resolved, closed, reopened] = await Promise.all([
+    const [total, pending, open, inProgress, resolved, closed, reopened, completed] = await Promise.all([
       ticketModel.countDocuments({ assignedTo: userId }),
       ticketModel.countDocuments({ assignedTo: userId, status: "Pending" }),
       ticketModel.countDocuments({ assignedTo: userId, status: "Open" }),
@@ -486,11 +504,25 @@ export const getMyAssignedTicketSummary = async (req, res) => {
       ticketModel.countDocuments({ assignedTo: userId, status: "Resolved" }),
       ticketModel.countDocuments({ assignedTo: userId, status: "Closed" }),
       ticketModel.countDocuments({ assignedTo: userId, status: "Reopened" }),
+      // ✅ Combined count
+      ticketModel.countDocuments({ 
+        assignedTo: userId, 
+        status: { $in: ["Resolved", "Closed"] } 
+      }),
     ]);
 
     return res.json({
       success: true,
-      summary: { total, pending, open, inProgress, resolved, closed, reopened },
+      summary: { 
+        total, 
+        pending, 
+        open, 
+        inProgress, 
+        resolved, 
+        closed, 
+        reopened,
+        completed // ✅ Added
+      },
     });
   } catch (error) {
     console.error("Get assigned summary error:", error);
