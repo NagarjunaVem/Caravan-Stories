@@ -28,7 +28,7 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // API Endpoints
 app.get("/", (req, res) => {
