@@ -72,3 +72,12 @@ export const assignDepartment = async (req, res) => {
   }
 };
 
+export const getAllEmployees = async (req, res) => {
+  try {
+    const employees = await userModel.find({ role: "employee" }).select("-password");
+    return res.json({ success: true, employees });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+

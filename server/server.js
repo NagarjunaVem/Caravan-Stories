@@ -26,20 +26,8 @@ const allowedOrigins = [
 
 // ✅ Enhanced CORS configuration
 const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: ['http://localhost:5173', 'https://caravan-stories.vercel.app'],
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  exposedHeaders: ["set-cookie"],
-  maxAge: 86400,
 };
 
 app.use(cors(corsOptions));
@@ -60,6 +48,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/tickets", ticketRouter);
+app.use(cors(corsOptions));
 app.use("/api/profile", profileRouter);
 app.use("/api/role-requests", roleRequestRouter);
 app.use('/api/stats', statsRouter);
