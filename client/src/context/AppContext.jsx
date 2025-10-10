@@ -1,11 +1,12 @@
+// src/context/AppContext.jsx
 import { createContext, useEffect, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
 
 export const AppContext = createContext();
 
+axios.defaults.withCredentials = true;
+
 export const AppContextProvider = ({ children }) => {
-  const navigate = useNavigate();
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -51,12 +52,18 @@ export const AppContextProvider = ({ children }) => {
     }
   };
 
-const fetchTicketSummary = async () => {
+  const fetchTicketSummary = async () => {
     try {
-      const { data } = await api.get('/tickets/summary');
-      if (data.success) setTicketSummary(data.summary);
+      const { data } = await axios.get(`${backendUrl}/api/tickets/summary`, {
+        withCredentials: true
+      });
+      if (data.success) {
+        setTicketSummary(data.summary);
+      }
     } catch (error) {
-      console.error('Fetch ticket summary error:', error);
+      if (error.response?.status !== 401) {
+        console.error('Fetch ticket summary error:', error);
+      }
     }
   };
 
