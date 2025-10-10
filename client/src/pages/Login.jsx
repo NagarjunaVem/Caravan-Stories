@@ -19,30 +19,28 @@ const Login = () => {
 
     try {
       axios.defaults.withCredentials = true;
-
-      const loginRes = await axios.post(`${backendUrl}/api/auth/login`, {
-        email: email.toLowerCase().trim(),
-        password
-      });
+      const loginRes = await axios.post(
+        `${backendUrl}/api/auth/login`,
+        {
+          email: email.toLowerCase().trim(),
+          password
+        },
+        { withCredentials: true }
+      );
 
       const loginData = loginRes.data;
 
       if (loginData.success) {
-        try {
-          const userRes = await axios.get(`${backendUrl}/api/auth/is-auth`, {
-            withCredentials: true
-          });
+        const userRes = await axios.get(`${backendUrl}/api/auth/is-auth`, {
+          withCredentials: true
+        });
 
-          if (userRes.data.success && userRes.data.user) {
-            setIsLoggedIn(true);
-            setUserData(userRes.data.user);
-            toast.success('Login successful!');
-            navigate('/');
-          } else {
-            toast.error('Failed to fetch user data');
-          }
-        } catch (userError) {
-          console.error('Fetch user error:', userError);
+        if (userRes.data.success && userRes.data.user) {
+          setIsLoggedIn(true);
+          setUserData(userRes.data.user);
+          toast.success('Login successful!');
+          navigate('/');
+        } else {
           toast.error('Failed to fetch user data');
         }
       } else {
