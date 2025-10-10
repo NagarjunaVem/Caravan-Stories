@@ -35,28 +35,21 @@ const Login = () => {
         toast.success('Login successful!');
         navigate('/');
       } else {
-        try {
-          const userRes = await axios.get(`${backendUrl}/api/auth/is-auth`, {
-            withCredentials: true
-          });
+        const userRes = await axios.get(`${backendUrl}/api/auth/is-auth`, {
+          withCredentials: true
+        });
 
-          if (userRes.data.success && userRes.data.user) {
-            setIsLoggedIn(true);
-            setUserData(userRes.data.user);
-            toast.success('Login successful!');
-            navigate('/');
-          } else {
-            toast.error('Failed to fetch user data');
-          }
-        } catch (fetchError) {
-          console.error('Fetch user error:', fetchError);
-          toast.error('Login successful but failed to fetch user data. Please refresh.');
-          // Still navigate - the main page will check auth
+        if (userRes.data.success && userRes.data.user) {
+          setIsLoggedIn(true);
+          setUserData(userRes.data.user);
+          toast.success('Login successful!');
           navigate('/');
+        } else {
+          toast.error('Failed to authenticate. Please try again.');
         }
       }
     } else {
-      // Handle email verification case
+      // ✅ Handle email verification case
       if (data.needsVerification) {
         toast.info(data.message || 'Please verify your email first');
         navigate('/verify-email', { 
