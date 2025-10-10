@@ -19,7 +19,7 @@ const Login = () => {
 
     try {
       axios.defaults.withCredentials = true;
-      const loginRes = await axios.post(
+      const { data } = await axios.post(
         `${backendUrl}/api/auth/login`,
         {
           email: email.toLowerCase().trim(),
@@ -28,28 +28,41 @@ const Login = () => {
         { withCredentials: true }
       );
 
-      const loginData = loginRes.data;
-
-      if (loginData.success) {
-        const userRes = await axios.get(`${backendUrl}/api/auth/is-auth`, {
-          withCredentials: true
-        });
-
-        if (userRes.data.success && userRes.data.user) {
+      if (data.success) {
+        // ✅ Use user data directly from login response
+        if (data.user) {
           setIsLoggedIn(true);
-          setUserData(userRes.data.user);
+          setUserData(data.user);
           toast.success('Login successful!');
           navigate('/');
         } else {
-          toast.error('Failed to fetch user data');
+          // ✅ If login doesn't return user, THEN fetch it
+          // Add a small delay to ensure cookie is set
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          const userRes = await axios.get(`${backendUrl}/api/auth/is-auth`, {
+            withCredentials: true
+          });
+
+          if (userRes.data.success && userRes.data.user) {
+            setIsLoggedIn(true);
+            setUserData(userRes.data.user);
+            toast.success('Login successful!');
+            navigate('/');
+          } else {
+            toast.error('Failed to fetch user data');
+          }
         }
       } else {
-        if (loginData.needsVerification) {
-          toast.info(loginData.message || 'Please verify your email first');
-          navigate('/verify-email', { state: { email: loginData.email || email.toLowerCase() } });
+        // Handle email verification case
+        if (data.needsVerification) {
+          toast.info(data.message || 'Please verify your email first');
+          navigate('/verify-email', { 
+            state: { email: data.email || email.toLowerCase() } 
+          });
           return;
         }
-        toast.error(loginData.message || 'Login failed');
+        toast.error(data.message || 'Login failed');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -65,22 +78,16 @@ const Login = () => {
       className="flex items-center justify-center min-h-screen bg-cover bg-center bg-no-repeat px-4 sm:px-6 lg:px-8"
       style={{ backgroundImage: `url(${bgLogin})` }}
     >
-      {/* Cyan/Indigo accent focus helper (fallback) */}
       <style>{`
         .focus-accent:focus {
-          border-color: rgba(56, 189, 248, 0.8) !important; /* cyan-400 */
+          border-color: rgba(56, 189, 248, 0.8) !important;
           box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
         }
       `}</style>
 
       <form
         onSubmit={handleSubmit}
-        className="
-          relative z-10 w-full max-w-[90%] xs:max-w-[350px] sm:max-w-md text-center
-          border border-white/10 rounded-2xl
-          px-6 py-6 sm:px-8 sm:py-8
-          backdrop-blur-xl bg-[rgba(8,14,28,0.55)] shadow-[0_10px_40px_rgba(0,0,0,0.45)]
-        "
+        className="relative z-10 w-full max-w-[90%] xs:max-w-[350px] sm:max-w-md text-center border border-white/10 rounded-2xl px-6 py-6 sm:px-8 sm:py-8 backdrop-blur-xl bg-[rgba(8,14,28,0.55)] shadow-[0_10px_40px_rgba(0,0,0,0.45)]"
       >
         <h1 className="text-white text-2xl sm:text-3xl mt-6 font-semibold tracking-tight">
           Login

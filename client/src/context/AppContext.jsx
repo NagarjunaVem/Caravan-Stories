@@ -18,9 +18,12 @@ export const AppContextProvider = ({ children }) => {
     resolved: 0
   });
 
-  // Check authentication status on mount
   useEffect(() => {
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+      fetchTicketSummary();
   }, []);
 
   const checkAuth = async () => {
@@ -37,7 +40,6 @@ export const AppContextProvider = ({ children }) => {
         setUserData(null);
       }
     } catch (error) {
-      // ✅ Handle 401 gracefully - user is just not logged in
       if (error.response?.status === 401) {
         console.log('User not authenticated');
         setIsLoggedIn(false);
@@ -52,20 +54,10 @@ export const AppContextProvider = ({ children }) => {
     }
   };
 
-  // Fetch ticket summary (only if logged in)
-  useEffect(() => {
-    fetchTicketSummary();
-  }, []);
-
-  const fetchTicketSummary = async () => {
+const fetchTicketSummary = async () => {
     try {
-      const { data } = await axios.get(`${backendUrl}/api/tickets/summary`, {
-        withCredentials: true
-      });
-
-      if (data.success) {
-        setTicketSummary(data.summary);
-      }
+      const { data } = await api.get('/tickets/summary');
+      if (data.success) setTicketSummary(data.summary);
     } catch (error) {
       console.error('Fetch ticket summary error:', error);
     }
