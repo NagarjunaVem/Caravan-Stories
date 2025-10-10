@@ -1,6 +1,7 @@
 // src/pages/dashboards/CitizenDash.jsx
 import { useContext, useEffect, useState } from 'react';
 import { AppContext } from '../../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -17,7 +18,8 @@ import CreateTicketModal from '../../components/citizen/modals/CreateTicketModal
 import TicketDetailsModal from '../../components/citizen/modals/TicketDetailsModal';
 
 const CitizenDashboard = () => {
-  const { backendUrl, userData } = useContext(AppContext);
+  const { backendUrl, isLoggedIn, userData, loading: authLoading } = useContext(AppContext);
+  const navigate = useNavigate();
   
   // State
   const [stats, setStats] = useState({
@@ -33,6 +35,7 @@ const CitizenDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   // Modal states
   const [showCreateTicket, setShowCreateTicket] = useState(false);
@@ -40,15 +43,56 @@ const CitizenDashboard = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // ✅ FIXED: Wait for auth to be confirmed before fetching data
   useEffect(() => {
-    fetchMyTickets();
-    fetchMyStats();
-  }, []);
+    // Only proceed if auth check is complete
+    if (!authLoading) {
+      if (isLoggedIn && userData) {
+        // Check if user is citizen
+        if (userData.role !== 'citizen') {
+          toast.error('Access denied. This dashboard is for citizens only.');
+          navigate('/');
+        } else {
+          // User is authenticated and is citizen, fetch data
+          if (!initialLoadComplete) {
+            initializeDashboard();
+          }
+        }
+      } else {
+        // Not logged in, redirect to login
+        navigate('/login');
+      }
+    }
+  }, [authLoading, isLoggedIn, userData, navigate, initialLoadComplete]);
+
+  // ✅ Separate initialization function to prevent multiple calls
+  const initializeDashboard = async () => {
+    try {
+      setLoading(true);
+      
+      // Ensure cookies are sent with requests
+      axios.defaults.withCredentials = true;
+      
+      await Promise.all([
+        fetchMyTickets(),
+        fetchMyStats()
+      ]);
+      
+      setInitialLoadComplete(true);
+    } catch (error) {
+      console.error('Dashboard initialization error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchMyTickets = async () => {
     try {
       const { data } = await axios.get(`${backendUrl}/api/tickets/my-submitted`, {
-        withCredentials: true
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
       
       if (data.success) {
@@ -56,16 +100,25 @@ const CitizenDashboard = () => {
       }
     } catch (error) {
       console.error('Fetch tickets error:', error);
-      toast.error(error.response?.data?.message || 'Failed to load tickets');
-    } finally {
-      setLoading(false);
+      
+      // ✅ Handle auth errors silently (redirect handled in useEffect)
+      if (error.response?.status === 401) {
+        console.log('Authentication error detected');
+        // Don't show toast for auth errors
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to load tickets');
+      }
+      throw error; // Re-throw to be caught by initializeDashboard
     }
   };
 
   const fetchMyStats = async () => {
     try {
       const { data } = await axios.get(`${backendUrl}/api/tickets/my-summary`, {
-        withCredentials: true
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
       
       if (data.success) {
@@ -73,6 +126,12 @@ const CitizenDashboard = () => {
       }
     } catch (error) {
       console.error('Fetch stats error:', error);
+      
+      // ✅ Only show error if it's not an auth error
+      if (error.response?.status !== 401) {
+        toast.error('Failed to load statistics');
+      }
+      throw error; // Re-throw to be caught by initializeDashboard
     }
   };
 
@@ -106,12 +165,16 @@ const CitizenDashboard = () => {
         toast.success('Complaint submitted successfully!');
         setShowCreateTicket(false);
         resetForm();
-        fetchMyTickets();
-        fetchMyStats();
+        // Refresh data
+        await Promise.all([
+          fetchMyTickets(),
+          fetchMyStats()
+        ]);
       } else {
         toast.error(data.message || 'Failed to create complaint');
       }
     } catch (error) {
+      console.error('Create ticket error:', error);
       toast.error(error.response?.data?.message || 'Failed to create complaint');
     } finally {
       setSubmitting(false);
@@ -122,7 +185,12 @@ const CitizenDashboard = () => {
     try {
       const { data } = await axios.get(
         `${backendUrl}/api/tickets/details/${ticketId}`,
-        { withCredentials: true }
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
       
       if (data.success) {
@@ -132,6 +200,7 @@ const CitizenDashboard = () => {
         toast.error(data.message || 'Failed to load ticket details');
       }
     } catch (error) {
+      console.error('View ticket error:', error);
       toast.error(error.response?.data?.message || 'Failed to load ticket details');
     }
   };
@@ -148,19 +217,28 @@ const CitizenDashboard = () => {
       const { data } = await axios.post(
         `${backendUrl}/api/tickets/reopen`,
         { ticketId, reason },
-        { withCredentials: true }
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
       
       if (data.success) {
         toast.success('Ticket reopened successfully!');
         setShowTicketDetails(false);
         setSelectedTicket(null);
-        fetchMyTickets();
-        fetchMyStats();
+        // Refresh data
+        await Promise.all([
+          fetchMyTickets(),
+          fetchMyStats()
+        ]);
       } else {
         toast.error(data.message || 'Failed to reopen ticket');
       }
     } catch (error) {
+      console.error('Reopen ticket error:', error);
       toast.error(error.response?.data?.message || 'Failed to reopen ticket');
     }
   };
@@ -177,12 +255,33 @@ const CitizenDashboard = () => {
         return t.status === filterStatus;
       });
 
-  if (loading) {
+  // ✅ Show loading while auth is being checked
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-zinc-950">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Verifying authentication...</p>
+        </div>
       </div>
     );
+  }
+
+  // ✅ Show loading while fetching dashboard data
+  if (loading && !authLoading && isLoggedIn) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-zinc-950">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Don't render if not logged in or not citizen
+  if (!isLoggedIn || !userData || userData.role !== 'citizen') {
+    return null;
   }
 
   return (
