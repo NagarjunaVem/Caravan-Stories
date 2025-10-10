@@ -5,6 +5,7 @@ import HeroSection from './sections/HeroSection';
 import Team from './sections/Team';
 import GlobalSummaryCharts from './sections/GlobalSummaryCharts';
 import Header from '../components/Header';
+import PublicPortal from "./PublicPortal";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -13,7 +14,8 @@ const Home = () => {
     <>
       <Header />
       <HeroSection />
-      <GlobalSummaryCharts />
+      <PublicPortal/>
+      {/* <GlobalSummaryCharts /> */}
       <Team />
       <Footer />
     </>
