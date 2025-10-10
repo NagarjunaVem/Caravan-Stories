@@ -4,7 +4,6 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from 'url';
-import serverless from "serverless-http";
 import connectDB from "./configs/db.js";
 import authRouter from "./routes/authRoutes.js";
 import userRouter from "./routes/userRoutes.js";
@@ -20,18 +19,37 @@ const __dirname = path.dirname(__filename);
 const app = express();
 connectDB();
 
-const allowedOrigins = ['http://localhost:5173','https://caravan-stories.vercel.app'];
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://caravan-stories.vercel.app'
+];
 
+// ✅ Enhanced CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  exposedHeaders: ["set-cookie"],
+  maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({ 
-  origin: allowedOrigins,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true
-}));
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+const PORT = process.env.PORT || 5000;
 
 // API Endpoints
 app.get("/", (req, res) => {
@@ -46,8 +64,11 @@ app.use("/api/profile", profileRouter);
 app.use("/api/role-requests", roleRequestRouter);
 app.use('/api/stats', statsRouter);
 
-// Remove app.listen
-// app.listen(PORT, () => console.log(Server running on port ${PORT}));
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({ success: false, message: 'Internal server error' });
+});
 
-export default app;
-export const handler = serverless(app);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

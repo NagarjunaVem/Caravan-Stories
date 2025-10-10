@@ -20,10 +20,7 @@ export const AppContextProvider = ({ children }) => {
 
   useEffect(() => {
     checkAuth();
-  }, []);
-
-  useEffect(() => {
-      fetchTicketSummary();
+    fetchTicketSummary();
   }, []);
 
   const checkAuth = async () => {

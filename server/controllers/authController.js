@@ -28,12 +28,18 @@ const sendOTPEmail = async (email, name, otp, isResend = false) => {
   return await transporter.sendMail({
     from: process.env.SENDER_EMAIL || process.env.SMTP_USER,
     to: email,
-    subject: isResend ? "New Verification OTP - Caravan Stories" : "Email Verification OTP - Caravan Stories",
+    subject: isResend
+      ? "New Verification OTP - Caravan Stories"
+      : "Email Verification OTP - Caravan Stories",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
         <div style="background-color: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #4F46E5; margin: 0; font-size: 28px;">${isResend ? 'New Verification Code! 🔄' : 'Welcome to Caravan Stories! 🎪'}</h1>
+            <h1 style="color: #4F46E5; margin: 0; font-size: 28px;">${
+              isResend
+                ? "New Verification Code! 🔄"
+                : "Welcome to Caravan Stories! 🎪"
+            }</h1>
           </div>
           
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 30px; text-align: center; margin: 20px 0;">
@@ -46,9 +52,11 @@ const sendOTPEmail = async (email, name, otp, isResend = false) => {
           <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <p style="color: #374151; margin: 0 0 10px 0; font-size: 16px;">Hello <strong>${name}</strong>,</p>
             <p style="color: #6b7280; margin: 0; line-height: 1.6; font-size: 14px;">
-              ${isResend 
-                ? "We've sent you a new OTP to complete your registration. Please enter this code to verify your email." 
-                : "Thank you for registering as a citizen. Please enter the OTP code above on the verification page to complete your registration and start reporting grievances."}
+              ${
+                isResend
+                  ? "We've sent you a new OTP to complete your registration. Please enter this code to verify your email."
+                  : "Thank you for registering as a citizen. Please enter the OTP code above on the verification page to complete your registration and start reporting grievances."
+              }
             </p>
           </div>
 
@@ -70,13 +78,14 @@ const sendOTPEmail = async (email, name, otp, isResend = false) => {
           </p>
         </div>
       </div>
-    `
+    `,
   });
 };
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password, requestedRole, department, reason } = req.body;
+    const { name, email, password, requestedRole, department, reason } =
+      req.body;
 
     // Validate input
     if (!name || !email || !password || !requestedRole) {
@@ -84,10 +93,12 @@ export const register = async (req, res) => {
     }
 
     // ✅ Check if email already exists in users (lowercase)
-    const existingUser = await userModel.findOne({ email: email.toLowerCase() });
+    const existingUser = await userModel.findOne({
+      email: email.toLowerCase(),
+    });
     if (existingUser) {
       // If user exists but not verified, allow resending OTP
-      if (!existingUser.accountVerified && existingUser.role === 'citizen') {
+      if (!existingUser.accountVerified && existingUser.role === "citizen") {
         // Generate new OTP
         const verifyOtp = generateOTP();
         existingUser.verifyOtp = verifyOtp;
@@ -101,18 +112,19 @@ export const register = async (req, res) => {
           console.error("OTP resend email error:", mailErr);
           return res.json({
             success: false,
-            message: "Failed to send verification OTP. Please try again."
+            message: "Failed to send verification OTP. Please try again.",
           });
         }
 
         return res.json({
           success: true,
           needsVerification: true,
-          message: "A new OTP has been sent to your email. Please verify to complete registration.",
-          email: email.toLowerCase() // ✅ Return lowercase email
+          message:
+            "A new OTP has been sent to your email. Please verify to complete registration.",
+          email: email.toLowerCase(), // ✅ Return lowercase email
         });
       }
-      
+
       return res.json({ success: false, message: "Email already registered" });
     }
 
@@ -120,7 +132,7 @@ export const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // CITIZEN REGISTRATION - Direct registration with OTP verification
-    if (requestedRole === 'citizen') {
+    if (requestedRole === "citizen") {
       // Generate 6-digit OTP
       const verifyOtp = generateOTP();
 
@@ -129,7 +141,7 @@ export const register = async (req, res) => {
         name,
         email: email.toLowerCase(), // ✅ Lowercase email
         password: hashedPassword,
-        role: 'citizen',
+        role: "citizen",
         accountVerified: false,
         verifyOtp,
         verifyOtpExpireAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
@@ -144,49 +156,50 @@ export const register = async (req, res) => {
         await userModel.deleteOne({ _id: newUser._id });
         return res.json({
           success: false,
-          message: "Failed to send verification OTP. Please try again."
+          message: "Failed to send verification OTP. Please try again.",
         });
       }
 
       return res.json({
         success: true,
         needsVerification: true,
-        message: "Registration successful! A 6-digit OTP has been sent to your email. Please verify to complete registration.",
-        email: email.toLowerCase() // ✅ Return lowercase email
+        message:
+          "Registration successful! A 6-digit OTP has been sent to your email. Please verify to complete registration.",
+        email: email.toLowerCase(), // ✅ Return lowercase email
       });
     }
 
     // EMPLOYEE/ADMIN REGISTRATION - Goes through role request approval
-    if (requestedRole === 'employee' || requestedRole === 'admin') {
+    if (requestedRole === "employee" || requestedRole === "admin") {
       // ✅ Check if there's already a pending request (lowercase email)
-      const existingRequest = await pendingRoleRequestModel.findOne({ 
+      const existingRequest = await pendingRoleRequestModel.findOne({
         email: email.toLowerCase(), // ✅ Lowercase email
-        status: "pending" 
+        status: "pending",
       });
-      
+
       if (existingRequest) {
-        return res.json({ 
-          success: false, 
-          message: "You already have a pending role request" 
+        return res.json({
+          success: false,
+          message: "You already have a pending role request",
         });
       }
 
       // ✅ Check if request already approved/rejected (lowercase email)
-      const processedRequest = await pendingRoleRequestModel.findOne({ 
-        email: email.toLowerCase() // ✅ Lowercase email
+      const processedRequest = await pendingRoleRequestModel.findOne({
+        email: email.toLowerCase(), // ✅ Lowercase email
       });
-      if (processedRequest && processedRequest.status === 'approved') {
-        return res.json({ 
-          success: false, 
-          message: "Your request was already approved. Please login." 
+      if (processedRequest && processedRequest.status === "approved") {
+        return res.json({
+          success: false,
+          message: "Your request was already approved. Please login.",
         });
       }
 
       // Validate department for employees
-      if (requestedRole === 'employee' && !department) {
-        return res.json({ 
-          success: false, 
-          message: "Department is required for employee role" 
+      if (requestedRole === "employee" && !department) {
+        return res.json({
+          success: false,
+          message: "Department is required for employee role",
         });
       }
 
@@ -196,20 +209,23 @@ export const register = async (req, res) => {
         email: email.toLowerCase(), // ✅ Lowercase email
         password: hashedPassword,
         requestedRole,
-        department: requestedRole === 'employee' ? department : undefined,
+        department: requestedRole === "employee" ? department : undefined,
         reason,
-        status: "pending"
+        status: "pending",
       });
 
       // Auto-approve if first admin
-      const autoApproveResult = await checkAndAutoApproveFirstAdmin(roleRequest);
-      
+      const autoApproveResult = await checkAndAutoApproveFirstAdmin(
+        roleRequest
+      );
+
       if (autoApproveResult.success && autoApproveResult.autoApproved) {
         return res.json({
           success: true,
-          message: "Congratulations! You've been approved as the first administrator. Please login.",
+          message:
+            "Congratulations! You've been approved as the first administrator. Please login.",
           autoApproved: true,
-          user: autoApproveResult.user
+          user: autoApproveResult.user,
         });
       }
 
@@ -231,8 +247,16 @@ export const register = async (req, res) => {
                   <p style="color: #6b7280; margin: 0 0 15px 0; line-height: 1.6; font-size: 14px;">
                     Your request for <strong style="color: #4F46E5;">${requestedRole.toUpperCase()}</strong> role has been submitted and is awaiting admin approval.
                   </p>
-                  ${department ? `<p style="color: #6b7280; margin: 0; font-size: 14px;"><strong>Department:</strong> ${department}</p>` : ''}
-                  ${reason ? `<p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;"><strong>Reason:</strong> ${reason}</p>` : ''}
+                  ${
+                    department
+                      ? `<p style="color: #6b7280; margin: 0; font-size: 14px;"><strong>Department:</strong> ${department}</p>`
+                      : ""
+                  }
+                  ${
+                    reason
+                      ? `<p style="color: #6b7280; margin: 10px 0 0 0; font-size: 14px;"><strong>Reason:</strong> ${reason}</p>`
+                      : ""
+                  }
                 </div>
 
                 <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; border-radius: 5px; padding: 15px; margin: 20px 0;">
@@ -249,7 +273,7 @@ export const register = async (req, res) => {
                 </p>
               </div>
             </div>
-          `
+          `,
         });
       } catch (mailErr) {
         console.error("Registration email error:", mailErr);
@@ -259,21 +283,21 @@ export const register = async (req, res) => {
       return res.json({
         success: true,
         requiresApproval: true,
-        message: "Registration request submitted successfully. Please wait for admin approval."
+        message:
+          "Registration request submitted successfully. Please wait for admin approval.",
       });
     }
 
     // Invalid role
     return res.json({
       success: false,
-      message: "Invalid role selected"
+      message: "Invalid role selected",
     });
-
   } catch (error) {
     console.error("Registration error:", error);
-    return res.json({ 
-      success: false, 
-      message: error.message || "Registration failed" 
+    return res.json({
+      success: false,
+      message: error.message || "Registration failed",
     });
   }
 };
@@ -286,7 +310,10 @@ export const verifyEmail = async (req, res) => {
     console.log("Verification attempt:", { email, otp, otpType: typeof otp });
 
     if (!email || !otp) {
-      return res.json({ success: false, message: "Email and OTP are required" });
+      return res.json({
+        success: false,
+        message: "Email and OTP are required",
+      });
     }
 
     // Convert OTP to string and trim it
@@ -299,31 +326,43 @@ export const verifyEmail = async (req, res) => {
       return res.json({ success: false, message: "User not found" });
     }
 
-    console.log("User found:", { 
-      email: user.email, 
+    console.log("User found:", {
+      email: user.email,
       accountVerified: user.accountVerified,
       storedOtp: user.verifyOtp,
       otpExpiry: user.verifyOtpExpireAt,
-      now: Date.now()
+      now: Date.now(),
     });
 
     if (user.accountVerified) {
-      return res.json({ success: false, message: "Email already verified. Please login." });
+      return res.json({
+        success: false,
+        message: "Email already verified. Please login.",
+      });
     }
 
     if (!user.verifyOtp) {
-      return res.json({ success: false, message: "No OTP found. Please request a new one." });
+      return res.json({
+        success: false,
+        message: "No OTP found. Please request a new one.",
+      });
     }
 
     // Compare OTPs as strings
     if (user.verifyOtp.trim() !== otpString) {
-      console.log("OTP mismatch:", { stored: user.verifyOtp, received: otpString });
+      console.log("OTP mismatch:", {
+        stored: user.verifyOtp,
+        received: otpString,
+      });
       return res.json({ success: false, message: "Invalid OTP" });
     }
 
     if (user.verifyOtpExpireAt < Date.now()) {
       console.log("OTP expired");
-      return res.json({ success: false, message: "OTP has expired. Please request a new one." });
+      return res.json({
+        success: false,
+        message: "OTP has expired. Please request a new one.",
+      });
     }
 
     // Verify the account
@@ -348,7 +387,9 @@ export const verifyEmail = async (req, res) => {
               </div>
 
               <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                <p style="color: #374151; margin: 0 0 15px 0; font-size: 16px;">Hello <strong>${user.name}</strong>,</p>
+                <p style="color: #374151; margin: 0 0 15px 0; font-size: 16px;">Hello <strong>${
+                  user.name
+                }</strong>,</p>
                 <p style="color: #6b7280; margin: 0; line-height: 1.6; font-size: 14px;">
                   Your email has been verified successfully! Welcome to Caravan Stories Grievance Tracker.
                 </p>
@@ -358,7 +399,9 @@ export const verifyEmail = async (req, res) => {
               </div>
 
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" 
+                <a href="${
+                  process.env.FRONTEND_URL || "http://localhost:5173"
+                }/login" 
                    style="background-color: #4F46E5; color: white; padding: 12px 30px; 
                           text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500;">
                   Login Now
@@ -373,15 +416,15 @@ export const verifyEmail = async (req, res) => {
               </p>
             </div>
           </div>
-        `
+        `,
       });
     } catch (mailErr) {
       console.error("Welcome email error:", mailErr);
     }
 
-    return res.json({ 
-      success: true, 
-      message: "Email verified successfully! You can now login." 
+    return res.json({
+      success: true,
+      message: "Email verified successfully! You can now login.",
     });
   } catch (error) {
     console.error("Verify email error:", error);
@@ -402,11 +445,17 @@ export const resendOTP = async (req, res) => {
     const user = await userModel.findOne({ email: email.toLowerCase() });
 
     if (!user) {
-      return res.json({ success: false, message: "No account found with this email" });
+      return res.json({
+        success: false,
+        message: "No account found with this email",
+      });
     }
 
     if (user.accountVerified) {
-      return res.json({ success: false, message: "Email already verified. Please login." });
+      return res.json({
+        success: false,
+        message: "Email already verified. Please login.",
+      });
     }
 
     // Generate new OTP
@@ -422,13 +471,13 @@ export const resendOTP = async (req, res) => {
       console.error("Resend OTP email error:", mailErr);
       return res.json({
         success: false,
-        message: "Failed to send OTP. Please try again."
+        message: "Failed to send OTP. Please try again.",
       });
     }
 
     return res.json({
       success: true,
-      message: "A new OTP has been sent to your email"
+      message: "A new OTP has been sent to your email",
     });
   } catch (error) {
     console.error("Resend OTP error:", error);
@@ -441,10 +490,12 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.json({ success: false, message: "Email and password are required" });
+      return res.json({
+        success: false,
+        message: "Email and password are required",
+      });
     }
 
-    // ✅ Find user with lowercase email
     const user = await userModel.findOne({ email: email.toLowerCase() });
 
     if (!user) {
@@ -452,12 +503,13 @@ export const login = async (req, res) => {
     }
 
     // Check if citizen account is verified
-    if (user.role === 'citizen' && !user.accountVerified) {
-      return res.json({ 
-        success: false, 
-        message: "Please verify your email first. Check your inbox for the OTP.",
+    if (user.role === "citizen" && !user.accountVerified) {
+      return res.json({
+        success: false,
+        message:
+          "Please verify your email first. Check your inbox for the OTP.",
         needsVerification: true,
-        email: email.toLowerCase()
+        email: email.toLowerCase(),
       });
     }
 
@@ -467,23 +519,42 @@ export const login = async (req, res) => {
       return res.json({ success: false, message: "Invalid email or password" });
     }
 
+    // ✅ Set cookie BEFORE sending response
     setAuthCookie(res, user._id);
 
-    return res.json({ success: true, message: "Login successful" });
+    // ✅ Return user data in login response
+    return res.json({
+      success: true,
+      message: "Login successful",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department || null,
+      },
+    });
   } catch (error) {
     console.error("Login error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
 
-// Logout
 export const logout = async (req, res) => {
   try {
-    res.clearCookie("token", {
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-    });
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    };
+
+    if (process.env.NODE_ENV === "development") {
+      cookieOptions.secure = false;
+      cookieOptions.sameSite = "lax";
+    }
+
+    res.clearCookie("token", cookieOptions);
     return res.json({ success: true, message: "Logged out" });
   } catch (error) {
     return res.json({ success: false, message: error.message });
@@ -543,7 +614,7 @@ export const adminCreateUser = async (req, res) => {
       email: email.toLowerCase(),
       password: hashed,
       role,
-      department: role === 'employee' ? department : undefined,
+      department: role === "employee" ? department : undefined,
       accountVerified: true, // Admin-created users are auto-verified
     });
 
@@ -624,7 +695,7 @@ export const bootstrapAdmin = async (req, res) => {
       role: "admin",
       accountVerified: true,
     });
-    
+
     return res.json({
       success: true,
       message: "Admin created. You can now login using this account.",
@@ -634,7 +705,6 @@ export const bootstrapAdmin = async (req, res) => {
     return res.json({ success: false, message: err.message });
   }
 };
-
 
 // Send OTP for Password Reset
 export const forgotPassword = async (req, res) => {
@@ -649,20 +719,23 @@ export const forgotPassword = async (req, res) => {
     const user = await userModel.findOne({ email: email.toLowerCase() });
 
     if (!user) {
-      return res.json({ success: false, message: "No account found with this email" });
+      return res.json({
+        success: false,
+        message: "No account found with this email",
+      });
     }
 
     // Check if account is verified (for citizens)
-    if (user.role === 'citizen' && !user.accountVerified) {
-      return res.json({ 
-        success: false, 
-        message: "Please verify your email first before resetting password" 
+    if (user.role === "citizen" && !user.accountVerified) {
+      return res.json({
+        success: false,
+        message: "Please verify your email first before resetting password",
       });
     }
 
     // Generate 6-digit OTP
     const resetOtp = generateOTP();
-    
+
     // Save OTP to user (reusing verifyOtp fields or add new fields)
     user.resetPasswordOtp = resetOtp;
     user.resetPasswordOtpExpireAt = Date.now() + 15 * 60 * 1000; // 15 minutes
@@ -715,20 +788,20 @@ export const forgotPassword = async (req, res) => {
               </p>
             </div>
           </div>
-        `
+        `,
       });
     } catch (mailErr) {
       console.error("Password reset email error:", mailErr);
       return res.json({
         success: false,
-        message: "Failed to send password reset OTP. Please try again."
+        message: "Failed to send password reset OTP. Please try again.",
       });
     }
 
     return res.json({
       success: true,
       message: "Password reset OTP has been sent to your email",
-      email: email.toLowerCase()
+      email: email.toLowerCase(),
     });
   } catch (error) {
     console.error("Forgot password error:", error);
@@ -744,17 +817,17 @@ export const resetPassword = async (req, res) => {
     console.log("Password reset attempt:", { email, otp, otpType: typeof otp });
 
     if (!email || !otp || !newPassword) {
-      return res.json({ 
-        success: false, 
-        message: "Email, OTP, and new password are required" 
+      return res.json({
+        success: false,
+        message: "Email, OTP, and new password are required",
       });
     }
 
     // Validate password length
     if (newPassword.length < 6) {
-      return res.json({ 
-        success: false, 
-        message: "Password must be at least 6 characters long" 
+      return res.json({
+        success: false,
+        message: "Password must be at least 6 characters long",
       });
     }
 
@@ -769,26 +842,26 @@ export const resetPassword = async (req, res) => {
       return res.json({ success: false, message: "User not found" });
     }
 
-    console.log("Password reset - User found:", { 
-      email: user.email, 
+    console.log("Password reset - User found:", {
+      email: user.email,
       storedOtp: user.resetPasswordOtp,
       otpExpiry: user.resetPasswordOtpExpireAt,
-      now: Date.now()
+      now: Date.now(),
     });
 
     // Check if OTP exists
     if (!user.resetPasswordOtp) {
-      return res.json({ 
-        success: false, 
-        message: "No password reset request found. Please request a new OTP." 
+      return res.json({
+        success: false,
+        message: "No password reset request found. Please request a new OTP.",
       });
     }
 
     // Verify OTP
     if (user.resetPasswordOtp.trim() !== otpString) {
-      console.log("OTP mismatch:", { 
-        stored: user.resetPasswordOtp, 
-        received: otpString 
+      console.log("OTP mismatch:", {
+        stored: user.resetPasswordOtp,
+        received: otpString,
       });
       return res.json({ success: false, message: "Invalid OTP" });
     }
@@ -796,9 +869,9 @@ export const resetPassword = async (req, res) => {
     // Check if OTP expired
     if (user.resetPasswordOtpExpireAt < Date.now()) {
       console.log("OTP expired");
-      return res.json({ 
-        success: false, 
-        message: "OTP has expired. Please request a new one." 
+      return res.json({
+        success: false,
+        message: "OTP has expired. Please request a new one.",
       });
     }
 
@@ -827,7 +900,9 @@ export const resetPassword = async (req, res) => {
               </div>
 
               <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                <p style="color: #374151; margin: 0 0 15px 0; font-size: 16px;">Hello <strong>${user.name}</strong>,</p>
+                <p style="color: #374151; margin: 0 0 15px 0; font-size: 16px;">Hello <strong>${
+                  user.name
+                }</strong>,</p>
                 <p style="color: #6b7280; margin: 0; line-height: 1.6; font-size: 14px;">
                   Your password has been reset successfully. You can now login with your new password.
                 </p>
@@ -840,7 +915,9 @@ export const resetPassword = async (req, res) => {
               </div>
 
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" 
+                <a href="${
+                  process.env.FRONTEND_URL || "http://localhost:5173"
+                }/login" 
                    style="background-color: #4F46E5; color: white; padding: 12px 30px; 
                           text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500;">
                   Login Now
@@ -855,16 +932,17 @@ export const resetPassword = async (req, res) => {
               </p>
             </div>
           </div>
-        `
+        `,
       });
     } catch (mailErr) {
       console.error("Password reset confirmation email error:", mailErr);
       // Don't fail the password reset if email fails
     }
 
-    return res.json({ 
-      success: true, 
-      message: "Password reset successfully! You can now login with your new password." 
+    return res.json({
+      success: true,
+      message:
+        "Password reset successfully! You can now login with your new password.",
     });
   } catch (error) {
     console.error("Reset password error:", error);
@@ -885,7 +963,10 @@ export const resendResetOTP = async (req, res) => {
     const user = await userModel.findOne({ email: email.toLowerCase() });
 
     if (!user) {
-      return res.json({ success: false, message: "No account found with this email" });
+      return res.json({
+        success: false,
+        message: "No account found with this email",
+      });
     }
 
     // Generate new OTP
@@ -935,19 +1016,19 @@ export const resendResetOTP = async (req, res) => {
               </p>
             </div>
           </div>
-        `
+        `,
       });
     } catch (mailErr) {
       console.error("Resend reset OTP email error:", mailErr);
       return res.json({
         success: false,
-        message: "Failed to send OTP. Please try again."
+        message: "Failed to send OTP. Please try again.",
       });
     }
 
     return res.json({
       success: true,
-      message: "A new password reset OTP has been sent to your email"
+      message: "A new password reset OTP has been sent to your email",
     });
   } catch (error) {
     console.error("Resend reset OTP error:", error);
