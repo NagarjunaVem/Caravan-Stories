@@ -1,6 +1,7 @@
 // src/pages/dashboards/EmployeeDash.jsx
 import { useContext, useEffect, useState } from 'react';
 import { AppContext } from '../../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -22,7 +23,8 @@ import TicketDetailsModal from '../../components/employee/modals/TicketDetailsMo
 import { filterAndSortTickets, exportTicketsToCSV } from '../../components/employee/utils/helpers';
 
 const EmployeeDashboard = () => {
-  const { backendUrl, userData } = useContext(AppContext);
+  const { backendUrl, isLoggedIn, userData, loading: authLoading } = useContext(AppContext);
+  const navigate = useNavigate();
   
   // State
   const [stats, setStats] = useState({
@@ -47,9 +49,10 @@ const EmployeeDashboard = () => {
   const [myTickets, setMyTickets] = useState([]);
   const [assignedTickets, setAssignedTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   const isEmployee = userData?.role === 'employee';
-  const [activeTab, setActiveTab] = useState(isEmployee ? 'overview' : 'overview');
+  const [activeTab, setActiveTab] = useState('overview');
   
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
@@ -60,55 +63,128 @@ const EmployeeDashboard = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // ✅ FIXED: Wait for auth to be confirmed before fetching data
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    // Only proceed if auth check is complete
+    if (!authLoading) {
+      if (isLoggedIn && userData) {
+        // Check if user is employee
+        if (userData.role !== 'employee') {
+          toast.error('Access denied. This dashboard is for employees only.');
+          navigate('/');
+        } else {
+          // User is authenticated and is employee, fetch data
+          if (!initialLoadComplete) {
+            initializeDashboard();
+          }
+        }
+      } else {
+        // Not logged in, redirect to login
+        navigate('/login');
+      }
+    }
+  }, [authLoading, isLoggedIn, userData, navigate, initialLoadComplete]);
+
+  // ✅ Separate initialization function to prevent multiple calls
+  const initializeDashboard = async () => {
+    try {
+      setLoading(true);
+      
+      // Ensure cookies are sent with requests
+      axios.defaults.withCredentials = true;
+      
+      await fetchDashboardData();
+      
+      setInitialLoadComplete(true);
+    } catch (error) {
+      console.error('Dashboard initialization error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
+      const requests = [];
+
+      // Fetch assigned tickets and stats for employees
       if (isEmployee) {
-        const assignedRes = await axios.get(`${backendUrl}/api/tickets/my-assigned`, {
-          withCredentials: true
-        });
+        requests.push(
+          axios.get(`${backendUrl}/api/tickets/my-assigned`, {
+            withCredentials: true,
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          }),
+          axios.get(`${backendUrl}/api/tickets/my-assigned-summary`, {
+            withCredentials: true,
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+        );
+      }
+
+      // Fetch submitted tickets and stats (for everyone)
+      requests.push(
+        axios.get(`${backendUrl}/api/tickets/my-submitted`, {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }),
+        axios.get(`${backendUrl}/api/tickets/my-summary`, {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+      );
+
+      const responses = await Promise.all(requests);
+
+      // Parse responses based on employee status
+      if (isEmployee) {
+        const [assignedRes, assignedSummaryRes, submittedRes, summaryRes] = responses;
         
         if (assignedRes.data.success) {
           setAssignedTickets(assignedRes.data.tickets || []);
         }
-
-        const assignedSummaryRes = await axios.get(`${backendUrl}/api/tickets/my-assigned-summary`, {
-          withCredentials: true
-        });
         
         if (assignedSummaryRes.data.success) {
           setAssignedStats(assignedSummaryRes.data.summary);
         }
-      }
-
-      const submittedRes = await axios.get(`${backendUrl}/api/tickets/my-submitted`, {
-        withCredentials: true
-      });
-      
-      if (submittedRes.data.success) {
-        setMyTickets(submittedRes.data.tickets || []);
-      }
-
-      const summaryRes = await axios.get(`${backendUrl}/api/tickets/my-summary`, {
-        withCredentials: true
-      });
-      
-      if (summaryRes.data.success) {
-        setStats(summaryRes.data.summary);
+        
+        if (submittedRes.data.success) {
+          setMyTickets(submittedRes.data.tickets || []);
+        }
+        
+        if (summaryRes.data.success) {
+          setStats(summaryRes.data.summary);
+        }
+      } else {
+        const [submittedRes, summaryRes] = responses;
+        
+        if (submittedRes.data.success) {
+          setMyTickets(submittedRes.data.tickets || []);
+        }
+        
+        if (summaryRes.data.success) {
+          setStats(summaryRes.data.summary);
+        }
       }
       
     } catch (error) {
-      console.error('Dashboard error:', error);
+      console.error('Dashboard data fetch error:', error);
+      
+      // ✅ Handle auth errors silently (redirect handled in useEffect)
       if (error.response?.status === 401) {
-        toast.error('Session expired. Please login again.');
+        console.log('Authentication error detected');
+        // Don't show toast for auth errors
       } else {
         toast.error(error.response?.data?.message || 'Failed to load dashboard data');
       }
-    } finally {
-      setLoading(false);
+      throw error; // Re-throw to be caught by initializeDashboard
     }
   };
 
@@ -116,16 +192,23 @@ const EmployeeDashboard = () => {
     try {
       const { data } = await axios.get(
         `${backendUrl}/api/tickets/details/${ticketId}`,
-        { withCredentials: true }
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
       
       if (data.success) {
         setSelectedTicket(data.ticket);
         setShowTicketDetails(true);
+      } else {
+        toast.error(data.message || 'Failed to load ticket details');
       }
     } catch (error) {
       console.error('Fetch ticket details error:', error);
-      toast.error('Failed to load ticket details');
+      toast.error(error.response?.data?.message || 'Failed to load ticket details');
     }
   };
 
@@ -159,11 +242,13 @@ const EmployeeDashboard = () => {
         toast.success('Ticket created successfully!');
         setShowCreateTicket(false);
         resetForm();
-        fetchDashboardData();
+        // Refresh dashboard data
+        await fetchDashboardData();
       } else {
         toast.error(data.message || 'Failed to create ticket');
       }
     } catch (error) {
+      console.error('Create ticket error:', error);
       toast.error(error.response?.data?.message || 'Failed to create ticket');
     } finally {
       setSubmitting(false);
@@ -180,14 +265,22 @@ const EmployeeDashboard = () => {
           ticketId: selectedTicket.ticketId,
           text 
         },
-        { withCredentials: true }
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
       
       if (data.success) {
         toast.success('Comment added successfully!');
         setSelectedTicket(data.ticket);
+      } else {
+        toast.error(data.message || 'Failed to add comment');
       }
     } catch (error) {
+      console.error('Add comment error:', error);
       toast.error(error.response?.data?.message || 'Failed to add comment');
     }
   };
@@ -200,17 +293,27 @@ const EmployeeDashboard = () => {
           ticketId,
           status: newStatus 
         },
-        { withCredentials: true }
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
       
       if (data.success) {
         toast.success('Status updated successfully!');
-        fetchDashboardData();
+        // Refresh dashboard data
+        await fetchDashboardData();
+        
         if (selectedTicket?.ticketId === ticketId) {
           setSelectedTicket(data.ticket);
         }
+      } else {
+        toast.error(data.message || 'Failed to update status');
       }
     } catch (error) {
+      console.error('Status change error:', error);
       toast.error(error.response?.data?.message || 'Failed to update status');
     }
   };
@@ -223,17 +326,27 @@ const EmployeeDashboard = () => {
           ticketId,
           reason 
         },
-        { withCredentials: true }
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
       
       if (data.success) {
         toast.success('Ticket reopened successfully!');
-        fetchDashboardData();
+        // Refresh dashboard data
+        await fetchDashboardData();
+        
         if (selectedTicket?.ticketId === ticketId) {
           setSelectedTicket(data.ticket);
         }
+      } else {
+        toast.error(data.message || 'Failed to reopen ticket');
       }
     } catch (error) {
+      console.error('Reopen ticket error:', error);
       toast.error(error.response?.data?.message || 'Failed to reopen ticket');
     }
   };
@@ -250,12 +363,33 @@ const EmployeeDashboard = () => {
   const filteredAssignedTickets = filterAndSortTickets(assignedTickets, filterStatus, sortBy);
   const filteredMyTickets = filterAndSortTickets(myTickets, filterStatus, sortBy);
 
-  if (loading) {
+  // ✅ Show loading while auth is being checked
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-zinc-950">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Verifying authentication...</p>
+        </div>
       </div>
     );
+  }
+
+  // ✅ Show loading while fetching dashboard data
+  if (loading && !authLoading && isLoggedIn) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-zinc-950">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Don't render if not logged in or not employee
+  if (!isLoggedIn || !userData || userData.role !== 'employee') {
+    return null;
   }
 
   return (
