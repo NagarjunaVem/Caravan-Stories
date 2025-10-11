@@ -51,27 +51,6 @@ const HeroSection = () => {
                         keeping the circus running smoothly.
                     </p>
 
-                    <div className="grid sm:grid-cols-3 gap-6 items-center mt-12">
-                        <div className="flex flex-col items-center text-center">
-                            <h5 className="font-bold text-2xl text-indigo-600 mb-2">
-                                {loading ? '—' : formatNumber(totalTkts)}
-                            </h5>
-                            <p className="text-slate-600 text-base font-medium">Total Tickets</p>
-                        </div>
-                        <div className="flex flex-col items-center text-center">
-                            <h5 className="font-bold text-2xl text-indigo-600 mb-2">
-                                {loading ? '—' : formatNumber(resolvedTkts)}
-                            </h5>
-                            <p className="text-slate-600 text-base font-medium">Tickets Resolved</p>
-                        </div>
-                        <div className="flex flex-col items-center text-center">
-                            <h5 className="font-bold text-2xl text-indigo-600 mb-2">
-                                {loading ? '—' : formatNumber(employeeCount)}
-                            </h5>
-                            <p className="text-slate-600 text-base font-medium">Employees</p>
-                        </div>
-                    </div>
-
                     {!isLoggedIn && (
                         <div className="mt-12 flex flex-wrap gap-x-6 gap-y-4 justify-center">
                             <button
