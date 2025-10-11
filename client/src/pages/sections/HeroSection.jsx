@@ -39,7 +39,7 @@ const HeroSection = () => {
     }
 
     return (
-        <div className="h-screen flex items-center justify-center py-4">
+        <div className="h-screen flex items-center justify-center py-4 sm:pb-2">
             <div className="text-center max-w-2xl mx-auto">
                 <div>
                     <h1 className="text-slate-900 md:text-4xl text-3xl font-bold mb-4 !leading-tight">
