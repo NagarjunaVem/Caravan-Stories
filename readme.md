@@ -382,5 +382,6 @@ This project is licensed under the **MIT License** – see the [LICENSE](LICENSE
 
 ## 👨‍💻 Team
 
-* **Shubham** – Developer
-* **Nagarjuna** – Developer
+* **Nagarjuna** – MNNIT'28
+* **Shubham** – MNNIT'28
+* **Teja** – MNNIT'28
