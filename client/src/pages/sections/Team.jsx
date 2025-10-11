@@ -1,6 +1,7 @@
 import React from 'react'
 import nagarjunaImg from '../../assets/Nagarjuna.jpg';
 import shubhamImg from '../../assets/Shubham.jpg';
+import tejaImg from '../../assets/Teja.jpg';
 
 const Team = () => {
     const teamMembers = [
@@ -22,6 +23,16 @@ const Team = () => {
                 instagram: "https://www.instagram.com/shubham______026/",
                 github: "https://github.com/Mettu-Shubham",
                 linkedin: "http://www.linkedin.com/in/mettu-shubham-4a56b7348"
+            }
+        },
+        {
+            name: "Teja Pentakota",
+            role: "MNNIT'28",
+            img: tejaImg,
+            socials: {
+                // instagram: "https://www.instagram.com/shubham______026/",
+                github: "https://github.com/tja343",
+                linkedin: "https://www.linkedin.com/in/teja-p-aa4110377/"
             }
         }
     ]
@@ -47,7 +58,7 @@ const Team = () => {
                 </p>
             </div>
 
-            <div className="grid lg:grid-cols-2 md:grid-cols-2 sm:grid-cols-1 gap-x-6 gap-y-20 text-center mt-24">
+            <div className="grid lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1 gap-x-6 gap-y-20 text-center mt-24">
                 {teamMembers.map((member, index) => (
                     <div key={index} className="bg-gray-200 relative rounded-sm">
                         <div className="w-40 h-40 rounded-full inline-block border border-gray-200 bg-gray-100 overflow-hidden -mt-14">
