@@ -15,7 +15,7 @@ import axios from 'axios';
 import { AppContext } from '../context/AppContext';
 
 // Toggle dummy vs live
-const USE_DUMMY = true;
+const USE_DUMMY = false;
 
 // Dummy response (matches your expected shape)
 const DUMMY_RESPONSE = {
